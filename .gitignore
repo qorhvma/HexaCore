@@ -1,0 +1,28 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# 학습 결과물 (체크포인트는 GitHub Releases에 올린다)
+logs/
+outputs/
+wandb/
+*.pt
+*.pth
+
+# 빌드 결과물
+build/
+dist/
+node_modules/
+
+# 편집기·OS
+.vscode/
+.idea/
+.DS_Store
+imgui.ini
+
+# 실행 중 생기는 파일
+*.pgm

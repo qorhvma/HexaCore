@@ -1,0 +1,54 @@
+# 라즈베리파이 노드 (헥사포드 상위 제어기)
+
+```
+[PC 조종 / 대시보드] ⇄ WebSocket :8765 ⇄ [Raspberry Pi] ⇄ USB 시리얼 115200 ⇄ [ESP32 firmware/firmware/firmware.ino]
+                                               ⇅ UDP 6101/6201
+                                        [Unitree 4D LiDAR L2]
+```
+
+| 파일 | 역할 |
+|---|---|
+| `robot_main.py` | 메인 노드: 보행(tripod) 50Hz, 지도 갱신 5Hz, 안전 정지, WebSocket 서버 실행 |
+| `firmware_link.py` | ESP32 펌웨어 제어: `<다리,관절,각도>` 전송, `#hb/#ft/#imu/#env` 파싱 |
+| `pc_link.py` | Pi ↔ PC 통신: WebSocket + JSON (텔레메트리 10Hz, 스캔 5Hz, 지도 1Hz) |
+| `lidar_l2.py` | Unitree L2 제어: 회전 시작/정지, 작업 모드, 리셋, 스캔 수신 |
+| `mapping.py` | 2D 점유 격자 지도 (log-odds), PGM 저장 |
+| `../pc/pc_client.py` | PC 터미널 조종 클라이언트 (WASD) |
+| `../dashboard/index.html` | 지도·센서 대시보드 (브라우저로 열기) |
+
+## 설치
+
+```bash
+pip install -r requirements.txt
+```
+
+Pi 의 이더넷은 L2 와 같은 대역 고정 IP `192.168.1.2/24` 로 설정 (Unitree `unilidar_sdk2` 예제 `main.cpp` 와 동일, 라이다 IP 192.168.1.62).
+
+## 실행
+
+```bash
+python3 robot_main.py                       # 실제 하드웨어 (없는 장치는 자동으로 시뮬레이션)
+python3 robot_main.py --sim                 # 전부 시뮬레이션 — PC 에서도 동작
+python3 robot_main.py --port /dev/serial0   # GPIO UART 로 ESP32 연결 시
+```
+
+PC 에서:
+
+```bash
+python3 software/pc/pc_client.py --host <pi-ip>
+```
+
+대시보드: `software/dashboard/index.html` 을 브라우저로 열고 상단에 `ws://<pi-ip>:8765` 입력 → 연결.
+연결이 안 되면 브라우저 안 데모 모드로 동작합니다.
+
+## 환경 센서 (미장착)
+
+펌웨어의 `ENV_SENSORS_ENABLED` 가 `0` 이라 `#env` 줄이 오지 않습니다. 대시보드에는 "센서 미장착" 으로 표시됩니다.
+DHT22(GPIO 27), MQ-2(GPIO 34), 불꽃 센서(GPIO 35), 부저(GPIO 25) 를 단 뒤 `1` 로 바꾸고
+"DHT sensor library" 를 설치하면 켜집니다.
+
+## 아직 안 된 것
+
+- 라이다 패킷 디코더(`decode_point_packet`)는 SDK 구조체 오프셋을 반영하지 않은 틀만 있음 → 실제 L2 는 C++ SDK 연동 필요
+- 위치 추정이 오도메트리뿐이라 오래 걸으면 지도가 밀림 (스캔 매칭 없음)
+- 인증은 `HEXAPOD_TOKEN` 환경변수 토큰 비교뿐 (암호화 없음)

@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hexapod Dashboard</title>
+<!--
+  헥사포드 관제 대시보드
+    - 라즈베리파이 robot_main.py 의 WebSocket (ws://<pi>:8765) 에 붙어 지도·센서를 표시
+    - 연결 안 되면 '데모' 모드: 브라우저 안에서 가상 방·라이다·센서를 흉내냄
+    - 주소 지정: index.html?ws=ws://192.168.0.42:8765   (데모 강제: ?demo=1)
+  조종: W/S 앞뒤, A/D 옆걸음, Q/E 회전, Space 정지, X 비상정지
+-->
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --map-unknown: #e9e8e3;
+  --map-free: #fcfcfb;
+  --map-occ: #2b2b29;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5; --series-2: #d95926;
+    --map-unknown: #242422; --map-free: #1a1a19; --map-occ: #e6e5e0;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --series-1: #3987e5; --series-2: #d95926;
+  --map-unknown: #242422; --map-free: #1a1a19; --map-occ: #e6e5e0;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--page); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+header {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--surface);
+  position: sticky; top: 0; z-index: 5;
+}
+header h1 { font-size: 16px; margin: 0; font-weight: 650; }
+.spacer { flex: 1; }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--border); font-size: 12px; color: var(--ink-2); white-space: nowrap;
+}
+.pill[hidden] { display: none; }
+.pill svg { width: 12px; height: 12px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+input[type=text] {
+  font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 6px; width: 220px; max-width: 100%;
+  border: 1px solid var(--border); background: var(--page); color: var(--ink);
+}
+button {
+  font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+}
+button:hover { background: var(--page); }
+button.danger { background: var(--critical); color: #fff; border-color: transparent; font-weight: 600; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--series-1); outline-offset: 1px; }
+
+main {
+  display: grid; gap: 16px; padding: 16px;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  max-width: 1500px; margin: 0 auto;
+}
+@media (max-width: 960px) { main { grid-template-columns: minmax(0, 1fr); } }
+.col { display: grid; gap: 16px; align-content: start; min-width: 0; }
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px; min-width: 0;
+}
+.card h2 { font-size: 13px; font-weight: 600; margin: 0 0 10px; color: var(--ink-2); display: flex; gap: 8px; align-items: center; }
+.card h2 .note { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: auto; }
+
+/* map */
+#mapWrap { position: relative; aspect-ratio: 4 / 3; width: 100%; border-radius: 6px; overflow: hidden; background: var(--map-unknown); }
+#map { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+.map-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 12px; color: var(--ink-2); }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; border: 1px solid var(--border); }
+.map-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.map-readout { position: absolute; left: 10px; bottom: 8px; font-size: 12px; color: var(--ink-2);
+  background: color-mix(in srgb, var(--surface) 85%, transparent); padding: 2px 8px; border-radius: 4px; }
+
+/* env tiles */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.tile { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.tile .label { font-size: 12px; color: var(--ink-2); }
+.tile .value { font-size: 26px; font-weight: 650; letter-spacing: -0.01em; margin: 2px 0; }
+.tile .unit { font-size: 13px; font-weight: 500; color: var(--ink-2); margin-left: 2px; }
+.status { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink-2); }
+.status svg { width: 12px; height: 12px; flex: none; }
+.banner { display: none; margin-bottom: 10px; padding: 8px 10px; border-radius: 6px; font-size: 13px;
+  border: 1px solid var(--border); color: var(--ink-2); }
+.banner.show { display: block; }
+
+/* sparkline */
+.spark { position: relative; margin-top: 12px; }
+.spark-title { font-size: 12px; color: var(--ink-2); display: flex; justify-content: space-between; }
+.spark svg { width: 100%; height: 86px; display: block; overflow: visible; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 8px; font-size: 12px; white-space: nowrap; display: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+/* imu + feet */
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: center; }
+@media (max-width: 420px) { .two { grid-template-columns: 1fr; } }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 13px; }
+.kv dt { color: var(--ink-2); }
+.kv dd { margin: 0; text-align: right; font-weight: 550; }
+svg.gauge { width: 100%; max-width: 170px; display: block; margin: 0 auto; }
+
+/* controls */
+.pad { display: grid; grid-template-columns: repeat(3, 52px); gap: 6px; justify-content: start; }
+.pad button { height: 40px; padding: 0; }
+.ctrl-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.kbd { font-size: 11px; color: var(--muted); }
+
+/* log */
+#log { height: 170px; overflow: auto; margin: 0; font: 12px/1.5 ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color: var(--ink-2); white-space: pre-wrap; word-break: break-all; }
+#log .w { color: var(--ink); font-weight: 600; }
+.full { grid-column: 1 / -1; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hexapod 관제</h1>
+  <span class="pill" id="connPill"><span class="dot" id="connDot"></span><span id="connText">연결 안 됨</span></span>
+  <span class="pill" id="modePill">mode: —</span>
+  <span class="pill" id="safetyPill" hidden></span>
+  <span class="spacer"></span>
+  <label class="sr-only" for="wsUrl">WebSocket 주소</label>
+  <input type="text" id="wsUrl" spellcheck="false" placeholder="ws://raspberrypi.local:8765">
+  <button id="btnConnect">연결</button>
+  <button id="btnDemo">데모</button>
+  <button id="btnTheme" title="밝게/어둡게">테마</button>
+</header>
+
+<main>
+  <div class="col">
+    <section class="card">
+      <h2>점유 격자 지도 <span class="note" id="mapMeta">—</span></h2>
+      <div id="mapWrap">
+        <canvas id="map" aria-label="라이다 점유 격자 지도"></canvas>
+        <div class="map-readout" id="mapReadout">x —, y —</div>
+      </div>
+      <div class="map-legend">
+        <span><span class="sw" style="background:var(--map-occ)"></span>장애물</span>
+        <span><span class="sw" style="background:var(--map-free)"></span>빈 공간</span>
+        <span><span class="sw" style="background:var(--map-unknown)"></span>미탐색</span>
+        <span><span class="sw" style="background:var(--series-1)"></span>현재 스캔</span>
+        <span><span class="sw" style="background:var(--series-2)"></span>로봇 · 경로</span>
+      </div>
+      <div class="map-tools">
+        <button id="btnFollow" aria-pressed="true">로봇 따라가기: 켬</button>
+        <button id="btnZoomIn">확대</button>
+        <button id="btnZoomOut">축소</button>
+        <button data-cmd="map_reset">지도 초기화</button>
+        <button data-cmd="map_save">지도 저장 (Pi)</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>조종 <span class="note">키보드: W A S D · Q E 회전 · Space 정지 · X 비상정지</span></h2>
+      <div class="ctrl-row" style="gap:20px; align-items:flex-start">
+        <div class="pad" role="group" aria-label="이동">
+          <button data-move="q" title="왼쪽 회전 (Q)">⟲</button>
+          <button data-move="w" title="앞 (W)">▲</button>
+          <button data-move="e" title="오른쪽 회전 (E)">⟳</button>
+          <button data-move="a" title="왼쪽 옆걸음 (A)">◀</button>
+          <button data-cmd="stop" title="정지 (Space)">■</button>
+          <button data-move="d" title="오른쪽 옆걸음 (D)">▶</button>
+          <span></span>
+          <button data-move="s" title="뒤 (S)">▼</button>
+          <span></span>
+        </div>
+        <div style="display:grid; gap:8px">
+          <div class="ctrl-row">
+            <button data-cmd="stand">서기</button>
+            <button data-cmd="power_off">힘 빼기</button>
+            <button data-cmd="imu_zero">IMU 수평 기억</button>
+            <button id="btnLidar">라이다 끄기</button>
+          </div>
+          <div class="ctrl-row">
+            <button class="danger" data-cmd="estop">비상정지 (X)</button>
+            <span class="kbd" id="cmdVel">cmd_vel vx 0.00 · vy 0.00 · wz 0.00</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>로그 <span class="note"><button id="btnClearLog" style="padding:2px 8px; font-size:12px">지우기</button></span></h2>
+      <pre id="log" aria-live="polite"></pre>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="card">
+      <h2>환경 센서 <span class="note" id="envAge">—</span></h2>
+      <div class="banner" id="envBanner">펌웨어 환경 센서가 비활성 상태입니다 (ENV_SENSORS_ENABLED = 0). 값이 들어오지 않습니다.</div>
+      <div class="tiles">
+        <div class="tile"><div class="label">온도</div><div class="value"><span id="vTemp">—</span><span class="unit">°C</span></div><div class="status" id="sTemp"></div></div>
+        <div class="tile"><div class="label">습도</div><div class="value"><span id="vHum">—</span><span class="unit">%</span></div><div class="status" id="sHum"></div></div>
+        <div class="tile"><div class="label">연기 (MQ-2)</div><div class="value"><span id="vSmoke">—</span><span class="unit">ppm</span></div><div class="status" id="sSmoke"></div></div>
+        <div class="tile"><div class="label">불꽃 감지</div><div class="value" id="vFlame" style="font-size:20px">—</div><div class="status" id="sFlame"></div></div>
+      </div>
+      <div class="spark" id="sparkTemp">
+        <div class="spark-title"><span>온도 · 최근 3분</span><span>경보 60 °C</span></div>
+        <svg role="img" aria-label="온도 추이"></svg><div class="tip"></div>
+      </div>
+      <div class="spark" id="sparkSmoke">
+        <div class="spark-title"><span>연기 농도 · 최근 3분</span><span>경보 300 ppm</span></div>
+        <svg role="img" aria-label="연기 농도 추이"></svg><div class="tip"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>자세 · 발 접지</h2>
+      <div class="two">
+        <div>
+          <svg class="gauge" id="horizon" viewBox="-60 -60 120 120" aria-label="자세 지시계"></svg>
+          <dl class="kv" style="margin-top:8px">
+            <dt>Roll</dt><dd id="vRoll">—</dd>
+            <dt>Pitch</dt><dd id="vPitch">—</dd>
+            <dt>IMU 정확도</dt><dd id="vAcc">—</dd>
+          </dl>
+        </div>
+        <div>
+          <svg class="gauge" id="feet" viewBox="-60 -60 120 120" aria-label="발 접지 상태"></svg>
+          <div class="map-legend" style="justify-content:center">
+            <span><span class="sw" style="background:var(--series-1)"></span>닿음</span>
+            <span><span class="sw" style="background:transparent"></span>공중</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>시스템</h2>
+      <dl class="kv">
+        <dt>추정 위치</dt><dd id="vPose">—</dd>
+        <dt>ESP32 펌웨어</dt><dd id="vFw">—</dd>
+        <dt>LiDAR L2</dt><dd id="vLidar">—</dd>
+        <dt>스캔 점 수</dt><dd id="vPts">—</dd>
+        <dt>창 오염도</dt><dd id="vDirty">—</dd>
+        <dt>Pi CPU 온도</dt><dd id="vCpu">—</dd>
+        <dt>Pi 부하</dt><dd id="vLoad">—</dd>
+        <dt>왕복 지연</dt><dd id="vRtt">—</dd>
+      </dl>
+    </section>
+  </div>
+</main>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+const TEMP_ALARM = 60, TEMP_WARN = 50, SMOKE_ALARM = 300, SMOKE_WARN = 200;
+const HISTORY_SEC = 180;
+
+const state = {
+  ws: null, demo: null, connected: false,
+  tel: null, scan: [], map: null, mapImg: null, rtt: null,
+  hist: { temp: [], smoke: [] },
+  view: { cx: 0, cy: 0, scale: 46, follow: true },   // scale = px / m
+  keys: new Set(), lidarOn: true,
+};
+
+/* ─────────────── 연결 ─────────────── */
+function log(line, warn = false) {
+  const el = $("log");
+  const t = new Date().toTimeString().slice(0, 8);
+  const row = document.createElement("div");
+  if (warn) row.className = "w";
+  row.textContent = `${t}  ${line}`;
+  el.appendChild(row);
+  while (el.childNodes.length > 400) el.firstChild.remove();
+  el.scrollTop = el.scrollHeight;
+}
+
+function setConn(kind, text) {
+  const color = { ok: css("--good"), demo: css("--series-1"), off: css("--muted"), err: css("--critical") }[kind];
+  $("connDot").style.background = color;
+  $("connText").textContent = text;
+}
+
+function connect(url) {
+  stopDemo();
+  if (state.ws) state.ws.close();
+  setConn("off", "연결 중…");
+  let ws;
+  try { ws = new WebSocket(url); } catch (e) { setConn("err", "주소 오류"); return; }
+  state.ws = ws;
+  const failTimer = setTimeout(() => { if (!state.connected) { ws.close(); } }, 3000);
+  ws.onopen = () => { clearTimeout(failTimer); state.connected = true; setConn("ok", "연결됨"); log(`[대시보드] ${url} 연결`); };
+  ws.onmessage = (ev) => { try { handle(JSON.parse(ev.data)); } catch (e) { console.warn(e); } };
+  ws.onclose = () => {
+    const was = state.connected;
+    state.connected = false; state.ws = null;
+    if (was) log("[대시보드] 연결 끊김", true);
+    setConn("err", "끊김 — 데모로 전환");
+    setTimeout(() => { if (!state.ws && !state.demo) startDemo(); }, 600);
+  };
+}
+
+function send(msg) {
+  if (state.demo) return state.demo.command(msg);
+  if (state.ws && state.ws.readyState === 1) state.ws.send(JSON.stringify(msg));
+}
+
+/* ─────────────── 메시지 처리 ─────────────── */
+function handle(m) {
+  switch (m.type) {
+    case "hello": log(`[pi] ${m.robot} v${m.version}${m.simulated ? " (시뮬레이션)" : ""}`); if (m.auth_required) log("[pi] 인증 필요 — ?token= 으로 전달", true); break;
+    case "telemetry": onTelemetry(m); break;
+    case "scan": state.scan = m.points; break;
+    case "map": onMap(m); break;
+    case "log": log(m.line, /★|오류|실패|정지/.test(m.line)); break;
+    case "pong": state.rtt = performance.now() - m.t; break;
+    case "ack":
+      if (!m.ok) log(`[pi] ${m.cmd} 실패: ${m.error}`, true);
+      else if (m.result) log(`[pi] ${m.cmd}: ${JSON.stringify(m.result)}`);
+      break;
+  }
+}
+
+function onTelemetry(m) {
+  state.tel = m;
+  const r = m.robot, now = m.t;
+  if (r.temp_c != null) pushHist("temp", now, r.temp_c);
+  if (r.env_t) pushHist("smoke", now, r.smoke_ppm);
+}
+
+function pushHist(key, t, v) {
+  const h = state.hist[key];
+  if (h.length && t - h[h.length - 1][0] < 0.9) return;    // 1Hz 로 솎기
+  h.push([t, v]);
+  while (h.length && t - h[0][0] > HISTORY_SEC) h.shift();
+}
+
+function onMap(m) {
+  state.map = m;
+  const bin = atob(m.data_b64), n = bin.length;
+  const occ = hexToRgb(css("--map-occ")), free = hexToRgb(css("--map-free")), unk = hexToRgb(css("--map-unknown"));
+  const img = new ImageData(m.width, m.height);
+  for (let iy = 0; iy < m.height; iy++) {
+    for (let ix = 0; ix < m.width; ix++) {
+      const p = bin.charCodeAt(iy * m.width + ix) / 255;
+      const o = ((m.height - 1 - iy) * m.width + ix) * 4;     // y 위쪽이 + 가 되도록 뒤집기
+      let c;
+      if (Math.abs(p - 0.5) < 0.04) c = unk;
+      else if (p > 0.5) c = mix(unk, occ, Math.min(1, (p - 0.5) * 2.6));
+      else c = mix(unk, free, Math.min(1, (0.5 - p) * 2.6));
+      img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
+    }
+  }
+  const off = state.mapImg || document.createElement("canvas");
+  off.width = m.width; off.height = m.height;
+  off.getContext("2d").putImageData(img, 0, 0);
+  state.mapImg = off;
+  $("mapMeta").textContent = `${m.width}×${m.height} · ${(m.resolution * 100).toFixed(0)} cm/셀`;
+}
+
+function hexToRgb(h) {
+  h = h.replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+}
+const mix = (a, b, t) => [0, 1, 2].map((i) => Math.round(a[i] + (b[i] - a[i]) * t));
+
+/* ─────────────── 지도 그리기 ─────────────── */
+const mapCanvas = $("map");
+function drawMap() {
+  const wrap = $("mapWrap"), dpr = window.devicePixelRatio || 1;
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  if (mapCanvas.width !== Math.round(W * dpr)) { mapCanvas.width = Math.round(W * dpr); mapCanvas.height = Math.round(H * dpr); }
+  const g = mapCanvas.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.fillStyle = css("--map-unknown"); g.fillRect(0, 0, W, H);
+
+  const v = state.view, pose = state.tel?.pose;
+  if (v.follow && pose) { v.cx += (pose.x - v.cx) * 0.15; v.cy += (pose.y - v.cy) * 0.15; }
+  const sx = (x) => W / 2 + (x - v.cx) * v.scale, sy = (y) => H / 2 - (y - v.cy) * v.scale;
+
+  const m = state.map;
+  if (m && state.mapImg) {
+    g.imageSmoothingEnabled = false;
+    const x0 = sx(m.origin[0]), y0 = sy(m.origin[1] + m.height * m.resolution);
+    g.drawImage(state.mapImg, x0, y0, m.width * m.resolution * v.scale, m.height * m.resolution * v.scale);
+  }
+  // 1m 격자
+  g.strokeStyle = css("--grid"); g.lineWidth = 1; g.globalAlpha = 0.6; g.beginPath();
+  const x1 = Math.floor(v.cx - W / 2 / v.scale), x2 = Math.ceil(v.cx + W / 2 / v.scale);
+  const y1 = Math.floor(v.cy - H / 2 / v.scale), y2 = Math.ceil(v.cy + H / 2 / v.scale);
+  for (let x = x1; x <= x2; x++) { g.moveTo(Math.round(sx(x)) + 0.5, 0); g.lineTo(Math.round(sx(x)) + 0.5, H); }
+  for (let y = y1; y <= y2; y++) { g.moveTo(0, Math.round(sy(y)) + 0.5); g.lineTo(W, Math.round(sy(y)) + 0.5); }
+  g.stroke(); g.globalAlpha = 1;
+
+  // 경로
+  if (m?.trail?.length > 1) {
+    g.strokeStyle = css("--series-2"); g.lineWidth = 2; g.lineJoin = "round"; g.globalAlpha = 0.7;
+    g.beginPath(); m.trail.forEach(([x, y], i) => i ? g.lineTo(sx(x), sy(y)) : g.moveTo(sx(x), sy(y))); g.stroke();
+    g.globalAlpha = 1;
+  }
+  // 현재 스캔
+  g.fillStyle = css("--series-1");
+  for (const [x, y] of state.scan) g.fillRect(sx(x) - 1.25, sy(y) - 1.25, 2.5, 2.5);
+
+  // 로봇
+  if (pose) {
+    const yaw = pose.yaw * Math.PI / 180, px = sx(pose.x), py = sy(pose.y), r = 0.16 * v.scale;
+    g.save(); g.translate(px, py); g.rotate(-yaw);
+    g.fillStyle = css("--series-2"); g.strokeStyle = css("--surface"); g.lineWidth = 2;
+    g.beginPath(); g.moveTo(r * 1.4, 0); g.lineTo(-r, r * 0.9); g.lineTo(-r * 0.55, 0); g.lineTo(-r, -r * 0.9); g.closePath();
+    g.fill(); g.stroke(); g.restore();
+  }
+  // 축척 막대
+  g.fillStyle = css("--ink-2"); g.font = "12px system-ui"; g.textAlign = "right";
+  g.fillRect(W - 12 - v.scale, H - 14, v.scale, 2); g.fillText("1 m", W - 12, H - 20);
+}
+
+// 지도 드래그 / 휠 확대 / 좌표 표시
+(() => {
+  let drag = null;
+  mapCanvas.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY }; mapCanvas.setPointerCapture(e.pointerId); setFollow(false); });
+  mapCanvas.addEventListener("pointermove", (e) => {
+    const rect = mapCanvas.getBoundingClientRect(), v = state.view;
+    const wx = v.cx + (e.clientX - rect.left - rect.width / 2) / v.scale, wy = v.cy - (e.clientY - rect.top - rect.height / 2) / v.scale;
+    $("mapReadout").textContent = `x ${wx.toFixed(2)} m, y ${wy.toFixed(2)} m`;
+    if (!drag) return;
+    v.cx -= (e.clientX - drag.x) / v.scale; v.cy += (e.clientY - drag.y) / v.scale;
+    drag = { x: e.clientX, y: e.clientY };
+  });
+  mapCanvas.addEventListener("pointerup", () => (drag = null));
+  mapCanvas.addEventListener("wheel", (e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 1.15 : 1 / 1.15); }, { passive: false });
+})();
+function zoom(f) { state.view.scale = Math.max(12, Math.min(240, state.view.scale * f)); }
+function setFollow(on) {
+  state.view.follow = on;
+  $("btnFollow").textContent = `로봇 따라가기: ${on ? "켬" : "끔"}`;
+  $("btnFollow").setAttribute("aria-pressed", on);
+}
+
+/* ─────────────── 센서 패널 ─────────────── */
+const ICON = {
+  good: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="var(--good)"/><path d="M3.5 6.2l1.6 1.6 3.4-3.6" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>',
+  warning: '<svg viewBox="0 0 12 12"><path d="M6 1l5 9.5H1z" fill="var(--warning)"/><path d="M6 4.5v3" stroke="#0b0b0b" stroke-width="1.4" stroke-linecap="round"/><circle cx="6" cy="9" r=".8" fill="#0b0b0b"/></svg>',
+  critical: '<svg viewBox="0 0 12 12"><rect x="1" y="1" width="10" height="10" rx="2" fill="var(--critical)"/><path d="M4 4l4 4M8 4l-4 4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  none: '<svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="var(--muted)" stroke-width="1.3"/></svg>',
+};
+function setStatus(id, level, text) { $(id).innerHTML = `${ICON[level]}<span>${text}</span>`; }
+const fmt = (v, d = 1) => (v == null || Number.isNaN(v) ? "—" : v.toFixed(d));
+
+function renderPanels() {
+  const t = state.tel;
+  if (!t) return;
+  const r = t.robot;
+  const modeTxt = { idle: "대기", stand: "서기", walk: "보행", estop: "비상정지" }[t.mode] || t.mode;
+  $("modePill").textContent = `mode: ${modeTxt}`;
+  const sp = $("safetyPill");
+  sp.hidden = !t.safety.length;
+  if (t.safety.length) sp.innerHTML = `${ICON.critical}<span>${t.safety.join(", ")}</span>`;
+
+  // 환경
+  const hasEnv = !!r.env_t;
+  $("envBanner").classList.toggle("show", !hasEnv);
+  $("envAge").textContent = hasEnv ? `${state.demo ? "데모 값" : "갱신"} · ${ago(t.t - r.env_t)}` : "센서 미장착";
+  $("vTemp").textContent = fmt(r.temp_c);
+  $("vHum").textContent = fmt(r.humidity, 0);
+  $("vSmoke").textContent = hasEnv ? fmt(r.smoke_ppm, 0) : "—";
+  $("vFlame").textContent = hasEnv ? (r.flame ? "감지됨" : "없음") : "—";
+  if (!hasEnv) ["sTemp", "sHum", "sSmoke", "sFlame"].forEach((id) => setStatus(id, "none", "데이터 없음"));
+  else {
+    const tl = r.temp_c >= TEMP_ALARM ? ["critical", "과열"] : r.temp_c >= TEMP_WARN ? ["warning", "주의"] : ["good", "정상"];
+    setStatus("sTemp", ...tl);
+    setStatus("sHum", r.humidity == null ? "none" : "good", r.humidity == null ? "센서 오류" : "정상");
+    const sl = r.smoke_ppm >= SMOKE_ALARM ? ["critical", "연기 경보"] : r.smoke_ppm >= SMOKE_WARN ? ["warning", "주의"] : ["good", "정상"];
+    setStatus("sSmoke", ...sl);
+    setStatus("sFlame", r.flame ? "critical" : "good", r.flame ? "불꽃 경보" : "정상");
+  }
+  sparkline("sparkTemp", state.hist.temp, { unit: "°C", digits: 1, alarm: TEMP_ALARM, min: 20, max: 70 });
+  sparkline("sparkSmoke", state.hist.smoke, { unit: "ppm", digits: 0, alarm: SMOKE_ALARM, min: 0, max: 400 });
+
+  // 자세
+  $("vRoll").textContent = `${fmt(r.roll)}°`;
+  $("vPitch").textContent = `${fmt(r.pitch)}°`;
+  $("vAcc").textContent = r.imu_err ? "오류" : `${r.imu_acc} / 3`;
+  drawHorizon(r.roll, r.pitch);
+  drawFeet(r.foot);
+
+  // 시스템
+  const p = t.pose, L = t.lidar;
+  $("vPose").textContent = `${p.x.toFixed(2)}, ${p.y.toFixed(2)} m · ${p.yaw.toFixed(0)}°`;
+  $("vFw").textContent = r.alive ? (r.simulated ? "시뮬레이션" : "연결됨") : "응답 없음";
+  $("vLidar").textContent = `${L.rotating ? `${L.scan_hz.toFixed(1)} Hz` : "정지"}${L.simulated ? " · SIM" : ""}`;
+  $("vPts").textContent = L.points.toLocaleString("ko-KR");
+  $("vDirty").textContent = `${L.dirty_pct.toFixed(1)} %`;
+  $("vCpu").textContent = t.pi.cpu_temp_c == null ? "—" : `${t.pi.cpu_temp_c.toFixed(1)} °C`;
+  $("vLoad").textContent = t.pi.load == null ? "—" : t.pi.load.toFixed(2);
+  $("vRtt").textContent = state.rtt == null ? "—" : `${state.rtt.toFixed(0)} ms`;
+  const c = t.cmd_vel;
+  $("cmdVel").textContent = `cmd_vel vx ${c.vx.toFixed(2)} · vy ${c.vy.toFixed(2)} · wz ${c.wz.toFixed(2)}`;
+  $("btnLidar").textContent = L.rotating ? "라이다 끄기" : "라이다 켜기";
+  state.lidarOn = L.rotating;
+}
+const ago = (s) => (s < 1.5 ? "방금" : `${s.toFixed(0)}초 전`);
+
+/* 한 계열 추이 차트: 선 2px, 경보선 점선, 호버 십자선 + 툴팁 */
+function sparkline(id, data, o) {
+  const box = $(id), svg = box.querySelector("svg"), W = svg.clientWidth || 300, H = 86, padL = 30, padR = 6, padT = 6, padB = 16;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const now = data.length ? data[data.length - 1][0] : 0;
+  const lo = Math.min(o.min, ...data.map((d) => d[1])), hi = Math.max(o.max, ...data.map((d) => d[1]));
+  const X = (t) => padL + (1 - (now - t) / HISTORY_SEC) * (W - padL - padR);
+  const Y = (v) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
+  const ticks = [lo, (lo + hi) / 2, hi];
+  let s = ticks.map((v) => `<line x1="${padL}" x2="${W - padR}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)"/>` +
+    `<text x="${padL - 4}" y="${Y(v) + 4}" font-size="10" fill="var(--muted)" text-anchor="end">${v.toFixed(0)}</text>`).join("");
+  s += `<line x1="${padL}" x2="${W - padR}" y1="${Y(o.alarm)}" y2="${Y(o.alarm)}" stroke="var(--critical)" stroke-dasharray="3 3" stroke-width="1"/>`;
+  s += `<text x="${padL}" y="${H - 3}" font-size="10" fill="var(--muted)">-3분</text><text x="${W - padR}" y="${H - 3}" font-size="10" fill="var(--muted)" text-anchor="end">지금</text>`;
+  if (data.length > 1) {
+    const d = data.map(([t, v], i) => `${i ? "L" : "M"}${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join("");
+    s += `<path d="${d}" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    const [lt, lv] = data[data.length - 1];
+    s += `<circle cx="${X(lt)}" cy="${Y(lv)}" r="4" fill="var(--series-1)" stroke="var(--surface)" stroke-width="2"/>`;
+  } else {
+    s += `<text x="${(W + padL) / 2}" y="${H / 2}" font-size="12" fill="var(--muted)" text-anchor="middle">데이터 없음</text>`;
+  }
+  s += `<g class="hover" visibility="hidden"><line y1="${padT}" y2="${H - padB}" stroke="var(--axis)"/><circle r="4" fill="var(--series-1)" stroke="var(--surface)" stroke-width="2"/></g>`;
+  s += `<rect x="${padL}" y="0" width="${W - padL - padR}" height="${H}" fill="transparent" class="hit"/>`;
+  svg.innerHTML = s;
+  const tip = box.querySelector(".tip"), hov = svg.querySelector(".hover");
+  svg.querySelector(".hit").onpointermove = (e) => {
+    if (!data.length) return;
+    const rect = svg.getBoundingClientRect(), mx = (e.clientX - rect.left) * (W / rect.width);
+    let best = data[0];
+    for (const p of data) if (Math.abs(X(p[0]) - mx) < Math.abs(X(best[0]) - mx)) best = p;
+    hov.setAttribute("visibility", "visible");
+    hov.querySelector("line").setAttribute("x1", X(best[0])); hov.querySelector("line").setAttribute("x2", X(best[0]));
+    hov.querySelector("circle").setAttribute("cx", X(best[0])); hov.querySelector("circle").setAttribute("cy", Y(best[1]));
+    tip.style.display = "block";
+    tip.innerHTML = `<b>${best[1].toFixed(o.digits)} ${o.unit}</b> · ${(now - best[0]).toFixed(0)}초 전`;
+    const left = Math.min(rect.width - tip.offsetWidth, Math.max(0, X(best[0]) * rect.width / W - tip.offsetWidth / 2));
+    tip.style.left = `${left}px`; tip.style.top = "-8px";
+  };
+  svg.querySelector(".hit").onpointerleave = () => { hov.setAttribute("visibility", "hidden"); tip.style.display = "none"; };
+}
+
+function drawHorizon(roll, pitch) {
+  const p = Math.max(-40, Math.min(40, pitch)) * 1.1;
+  $("horizon").innerHTML = `
+    <defs><clipPath id="hc"><circle r="52"/></clipPath></defs>
+    <circle r="52" fill="var(--page)" stroke="var(--border)"/>
+    <g clip-path="url(#hc)"><g transform="rotate(${-roll}) translate(0 ${p})">
+      <rect x="-120" y="0" width="240" height="120" fill="var(--grid)"/>
+      <line x1="-120" x2="120" stroke="var(--ink-2)" stroke-width="1.5"/>
+      ${[-20, -10, 10, 20].map((d) => `<line x1="-12" x2="12" y1="${-d * 1.1}" y2="${-d * 1.1}" stroke="var(--muted)"/>`).join("")}
+    </g></g>
+    <path d="M-30 0h18l6 6 6-6h18" fill="none" stroke="var(--series-2)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle r="2.5" fill="var(--series-2)"/>`;
+}
+
+function drawFeet(foot) {
+  // 다리 순서 (hexapod_sdk): 0 왼앞 1 왼중간 2 왼뒤 3 오른뒤 4 오른중간 5 오른앞 — 위가 앞
+  const ang = [-150, 180, 150, 30, 0, -30].map((a) => a * Math.PI / 180);
+  let s = `<rect x="-16" y="-26" width="32" height="52" rx="10" fill="var(--page)" stroke="var(--axis)" stroke-width="1.5"/>
+    <path d="M-6 -20l6 -6 6 6" fill="none" stroke="var(--muted)" stroke-width="1.5"/>`;
+  ang.forEach((a, i) => {
+    const bx = Math.cos(a) * 16 * (i === 1 || i === 4 ? 1 : 1.05), by = Math.sin(a) * 22;
+    const fx = Math.cos(a) * 46, fy = Math.sin(a) * 40, on = foot?.[i];
+    s += `<line x1="${bx}" y1="${by}" x2="${fx}" y2="${fy}" stroke="var(--axis)" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="${fx}" cy="${fy}" r="8" fill="${on ? "var(--series-1)" : "var(--surface)"}" stroke="${on ? "var(--surface)" : "var(--muted)"}" stroke-width="2"/>
+      <text x="${fx}" y="${fy + 3.5}" font-size="9" text-anchor="middle" fill="${on ? "#fff" : "var(--ink-2)"}">${i + 1}</text>`;
+  });
+  $("feet").innerHTML = s;
+}
+
+/* ─────────────── 조종 ─────────────── */
+const MOVE = { w: [1, 0, 0], s: [-1, 0, 0], a: [0, 1, 0], d: [0, -1, 0], q: [0, 0, 1], e: [0, 0, -1] };
+const SPEED = [0.10, 0.06, 0.5];
+const held = new Set();
+function velFromHeld() {
+  const v = [0, 0, 0];
+  for (const k of held) MOVE[k].forEach((x, i) => (v[i] += x * SPEED[i]));
+  return v;
+}
+setInterval(() => {
+  if (!held.size) return;
+  const [vx, vy, wz] = velFromHeld();
+  send({ cmd: "walk", vx, vy, wz });
+}, 50);
+setInterval(() => send({ cmd: "ping", t: performance.now() }), 2000);
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT") return;
+  const k = e.key.toLowerCase();
+  if (MOVE[k]) { held.add(k); e.preventDefault(); }
+  else if (k === " ") { held.clear(); send({ cmd: "stop" }); e.preventDefault(); }
+  else if (k === "x") { held.clear(); send({ cmd: "estop" }); log("[대시보드] ★ 비상정지", true); }
+});
+document.addEventListener("keyup", (e) => held.delete(e.key.toLowerCase()));
+window.addEventListener("blur", () => held.clear());
+document.querySelectorAll("[data-move]").forEach((b) => {
+  const k = b.dataset.move;
+  b.addEventListener("pointerdown", () => held.add(k));
+  ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => b.addEventListener(ev, () => held.delete(k)));
+});
+document.querySelectorAll("[data-cmd]").forEach((b) => b.addEventListener("click", () => {
+  const cmd = b.dataset.cmd;
+  if (cmd === "map_reset" && !confirm("지도를 초기화할까요?")) return;
+  send({ cmd });
+  if (cmd === "estop") log("[대시보드] ★ 비상정지", true);
+}));
+$("btnLidar").onclick = () => send({ cmd: "lidar", on: !state.lidarOn });
+$("btnFollow").onclick = () => setFollow(!state.view.follow);
+$("btnZoomIn").onclick = () => zoom(1.25);
+$("btnZoomOut").onclick = () => zoom(1 / 1.25);
+$("btnClearLog").onclick = () => ($("log").innerHTML = "");
+$("btnConnect").onclick = () => connect($("wsUrl").value.trim());
+$("btnDemo").onclick = () => { if (state.ws) { state.connected = false; state.ws.onclose = null; state.ws.close(); state.ws = null; } startDemo(); };
+$("btnTheme").onclick = () => {
+  const root = document.documentElement, dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  const cur = root.dataset.theme || (dark ? "dark" : "light");
+  root.dataset.theme = cur === "dark" ? "light" : "dark";
+  try { localStorage.setItem("hexapod-theme", root.dataset.theme); } catch (_) {}
+  if (state.map) onMap(state.map);
+};
+try { const th = localStorage.getItem("hexapod-theme"); if (th) document.documentElement.dataset.theme = th; } catch (_) {}
+
+/* ─────────────── 데모 (Pi 없이 동작 확인용) ─────────────── */
+class Demo {
+  constructor() {
+    this.res = 0.05; this.n = 240; this.origin = -6;
+    this.lo = new Float32Array(this.n * this.n);
+    this.pose = { x: 0, y: 0, yaw: 0 }; this.trail = [];
+    this.cmd = { vx: 0, vy: 0, wz: 0, t: 0 }; this.mode = "stand";
+    this.lidar = true; this.temp = 31; this.smoke = 85; this.t0 = performance.now();
+    const box = (cx, cy, w, h) => [[cx - w / 2, cy - h / 2, cx + w / 2, cy - h / 2], [cx + w / 2, cy - h / 2, cx + w / 2, cy + h / 2],
+      [cx + w / 2, cy + h / 2, cx - w / 2, cy + h / 2], [cx - w / 2, cy + h / 2, cx - w / 2, cy - h / 2]];
+    this.walls = [...box(0, 0, 8, 6), ...box(1.8, 1.2, 0.8, 0.6), ...box(-2.2, -1.5, 1.2, 0.5), ...box(-1, 1.9, 0.4, 0.4),
+      [2.5, -3, 2.5, -1.2], [-4, 0.4, -2.6, 0.4]];
+    this.route = [[1.2, -0.4], [2.0, -2.2], [-0.2, -2.3], [-3.2, -0.6], [-3.0, 2.0], [0.6, 2.2], [3.3, 2.3], [3.3, 0], [0, 0]];
+    this.wp = 0;
+    this.timers = [setInterval(() => this.step(0.05), 50), setInterval(() => this.emitTel(), 100),
+      setInterval(() => this.emitScan(), 200), setInterval(() => this.emitMap(), 1000)];
+    handle({ type: "hello", robot: "Hyperism-HEXAPODv1", version: "0.3.0-demo", simulated: true });
+    handle({ type: "log", line: "[데모] Pi 연결 없이 브라우저에서 흉내내는 중 — 키보드로 조종하면 자동 순회가 멈춥니다" });
+  }
+  stop() { this.timers.forEach(clearInterval); }
+  command(m) {
+    const now = performance.now() / 1000;
+    if (m.cmd === "walk") { this.cmd = { vx: m.vx, vy: m.vy, wz: m.wz, t: now }; this.manualT = now; if (this.mode !== "estop") this.mode = "walk"; }
+    else if (m.cmd === "stop") this.cmd = { vx: 0, vy: 0, wz: 0, t: 0 };
+    else if (m.cmd === "estop" || m.cmd === "power_off") { this.mode = m.cmd === "estop" ? "estop" : "idle"; this.cmd = { vx: 0, vy: 0, wz: 0, t: 0 }; }
+    else if (m.cmd === "stand") this.mode = "stand";
+    else if (m.cmd === "lidar") this.lidar = !!m.on;
+    else if (m.cmd === "map_reset") { this.lo.fill(0); this.trail = []; Object.assign(this.pose, { x: 0, y: 0, yaw: 0 }); }
+    else if (m.cmd === "map_save") handle({ type: "ack", cmd: "map_save", ok: true, result: { path: "maps/demo.pgm (데모라 실제 저장 안 함)" } });
+    else if (m.cmd === "ping") handle({ type: "pong", t: m.t - 12 - Math.random() * 6 });
+    else if (m.cmd === "imu_zero") handle({ type: "log", line: "[로봇] 수평 기준 저장: 0.012,-0.004,0.999" });
+  }
+  step(dt) {
+    const now = performance.now() / 1000, p = this.pose;
+    let { vx, vy, wz } = this.cmd;
+    if (now - this.cmd.t > 0.5) { vx = vy = wz = 0; }
+    const manual = this.manualT && now - this.manualT < 4;
+    if (!manual && (this.mode === "stand" || this.mode === "walk")) {     // 자동 순회
+      const [tx, ty] = this.route[this.wp], dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy);
+      if (d < 0.15) this.wp = (this.wp + 1) % this.route.length;
+      let e = Math.atan2(dy, dx) - p.yaw; e = Math.atan2(Math.sin(e), Math.cos(e));
+      wz = Math.max(-0.6, Math.min(0.6, e * 1.5)); vx = Math.abs(e) < 0.5 ? 0.12 : 0.02; vy = 0;
+      this.mode = "walk";
+    }
+    if (this.mode === "idle" || this.mode === "estop") vx = vy = wz = 0;
+    this.vel = { vx, vy, wz };
+    const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+    const nx = p.x + (vx * c - vy * s) * dt * 2, ny = p.y + (vx * s + vy * c) * dt * 2;   // 데모는 2배속
+    if (this.ray(p.x, p.y, Math.atan2(ny - p.y, nx - p.x)) > Math.hypot(nx - p.x, ny - p.y) + 0.25) { p.x = nx; p.y = ny; }
+    p.yaw = Math.atan2(Math.sin(p.yaw + wz * dt * 2), Math.cos(p.yaw + wz * dt * 2));
+    const last = this.trail[this.trail.length - 1];
+    if (!last || Math.hypot(last[0] - p.x, last[1] - p.y) > 0.05) this.trail.push([p.x, p.y]);
+    this.temp = Math.min(48, Math.max(26, this.temp + (Math.random() - 0.47) * 0.04));
+    this.smoke = Math.max(40, this.smoke + (Math.random() - 0.5) * 3 + (Math.random() < 0.0015 ? 160 : 0) - (this.smoke > 150 ? 1.2 : 0));
+  }
+  ray(ox, oy, a) {
+    const dx = Math.cos(a), dy = Math.sin(a);
+    let best = Infinity;
+    for (const [x1, y1, x2, y2] of this.walls) {
+      const ex = x2 - x1, ey = y2 - y1, den = dx * ey - dy * ex;
+      if (Math.abs(den) < 1e-9) continue;
+      const wx = x1 - ox, wy = y1 - oy, t = (wx * ey - wy * ex) / den, u = (wx * dy - wy * dx) / den;
+      if (t > 0 && u >= 0 && u <= 1 && t < best) best = t;
+    }
+    return best;
+  }
+  emitScan() {
+    if (!this.lidar) { handle({ type: "scan", points: [] }); return; }
+    const p = this.pose, pts = [];
+    for (let deg = 0; deg < 360; deg += 1) {
+      if (Math.random() < 0.04) continue;
+      const a = p.yaw + deg * Math.PI / 180, r = this.ray(p.x, p.y, a) + (Math.random() - 0.5) * 0.02;
+      if (r > 8) continue;
+      const ex = p.x + Math.cos(a) * r, ey = p.y + Math.sin(a) * r;
+      pts.push([ex, ey]);
+      this.integrate(p.x, p.y, ex, ey);
+    }
+    handle({ type: "scan", points: pts });
+  }
+  integrate(ox, oy, ex, ey) {
+    const n = this.n, cell = (x) => Math.floor((x - this.origin) / this.res);
+    const cx0 = cell(ox), cy0 = cell(oy), cx1 = cell(ex), cy1 = cell(ey);
+    const steps = Math.max(Math.abs(cx1 - cx0), Math.abs(cy1 - cy0));
+    for (let i = 0; i < steps; i++) {
+      const x = Math.floor(cx0 + (cx1 - cx0) * i / steps), y = Math.floor(cy0 + (cy1 - cy0) * i / steps);
+      if (x >= 0 && x < n && y >= 0 && y < n) this.lo[y * n + x] = Math.max(-4, this.lo[y * n + x] - 0.4);
+    }
+    if (cx1 >= 0 && cx1 < n && cy1 >= 0 && cy1 < n) this.lo[cy1 * n + cx1] = Math.min(4, this.lo[cy1 * n + cx1] + 1.25);
+  }
+  emitMap() {
+    let s = "";
+    for (let i = 0; i < this.lo.length; i++) s += String.fromCharCode(Math.round(255 / (1 + Math.exp(-this.lo[i]))));
+    handle({ type: "map", resolution: this.res, width: this.n, height: this.n, origin: [this.origin, this.origin], data_b64: btoa(s), trail: this.trail.slice(-400) });
+  }
+  emitTel() {
+    const t = (performance.now() - this.t0) / 1000, now = Date.now() / 1000, walking = this.mode === "walk";
+    const ph = Math.floor(t * 2.4) % 2, v = this.vel || { vx: 0, vy: 0, wz: 0 };
+    const safety = [];
+    if (this.smoke >= SMOKE_ALARM) safety.push("fire_risk");
+    if (this.temp >= TEMP_ALARM) safety.push("over_temp");
+    handle({
+      type: "telemetry", t: now, mode: this.mode, safety,
+      robot: {
+        alive: true, simulated: true, powered: this.mode !== "idle",
+        foot: [0, 1, 2, 3, 4, 5].map((i) => !walking || (i % 2) === ph),
+        roll: 1.8 * Math.sin(t * 1.3) + (walking ? 0.6 * Math.sin(t * 15) : 0), pitch: 1.2 * Math.cos(t * 0.8),
+        imu_acc: 3, imu_err: false,
+        temp_c: this.temp, humidity: 44 + 4 * Math.sin(t / 40), smoke_ppm: this.smoke, flame: false,
+        env_alarm: this.smoke >= SMOKE_ALARM ? 2 : 0, env_t: now - (t % 1),
+      },
+      pose: { x: this.pose.x, y: this.pose.y, yaw: this.pose.yaw * 180 / Math.PI },
+      cmd_vel: v,
+      lidar: { simulated: true, rotating: this.lidar, work_mode: 0, dirty_pct: 0.9 + 0.2 * Math.sin(t / 9), scan_hz: this.lidar ? 9.8 + Math.random() * 0.4 : 0, points: this.lidar ? 2073 : 0 },
+      pi: { cpu_temp_c: 52.3 + Math.sin(t / 20), load: 0.8 + 0.2 * Math.sin(t / 7) },
+    });
+  }
+}
+function startDemo() { stopDemo(); state.demo = new Demo(); setConn("demo", "데모 모드"); }
+function stopDemo() { if (state.demo) { state.demo.stop(); state.demo = null; } }
+
+/* ─────────────── 시작 ─────────────── */
+function frame() { drawMap(); requestAnimationFrame(frame); }
+setInterval(renderPanels, 200);
+requestAnimationFrame(frame);
+
+const qs = new URLSearchParams(location.search);
+const defaultWs = qs.get("ws") || (location.hostname && location.protocol.startsWith("http") ? `ws://${location.hostname}:8765` : "ws://raspberrypi.local:8765");
+$("wsUrl").value = defaultWs;
+if (qs.get("demo") === "1" || (location.protocol === "file:" && !qs.get("ws"))) startDemo(); else connect(defaultWs);
+</script>
+</body>
+</html>

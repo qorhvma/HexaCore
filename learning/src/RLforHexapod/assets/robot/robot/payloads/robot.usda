@@ -1,0 +1,276 @@
+#usda 1.0
+(
+    customLayerData = {
+        string creator = "URDF USD Converter v0.3.2"
+    }
+    defaultPrim = "HexapodRobot"
+    endTimeCode = 1000000
+    kilogramsPerUnit = 1
+    metersPerUnit = 1
+    startTimeCode = 0
+    upAxis = "Z"
+)
+
+over "HexapodRobot" (
+    prepend apiSchemas = ["IsaacRobotAPI"]
+)
+{
+    prepend rel isaac:physics:robotJoints = [
+        </HexapodRobot/Physics/L1_coxa>,
+        </HexapodRobot/Physics/L2_coxa>,
+        </HexapodRobot/Physics/L3_coxa>,
+        </HexapodRobot/Physics/L4_coxa>,
+        </HexapodRobot/Physics/L5_coxa>,
+        </HexapodRobot/Physics/L6_coxa>,
+        </HexapodRobot/Physics/L1_femur>,
+        </HexapodRobot/Physics/L1_tibia>,
+        </HexapodRobot/Physics/L2_femur>,
+        </HexapodRobot/Physics/L2_tibia>,
+        </HexapodRobot/Physics/L3_femur>,
+        </HexapodRobot/Physics/L3_tibia>,
+        </HexapodRobot/Physics/L4_femur>,
+        </HexapodRobot/Physics/L4_tibia>,
+        </HexapodRobot/Physics/L5_femur>,
+        </HexapodRobot/Physics/L5_tibia>,
+        </HexapodRobot/Physics/L6_femur>,
+        </HexapodRobot/Physics/L6_tibia>,
+    ]
+    prepend rel isaac:physics:robotLinks = [
+        </HexapodRobot/Geometry/body>,
+        </HexapodRobot/Geometry/body/coxa>,
+        </HexapodRobot/Geometry/body/coxa/femur>,
+        </HexapodRobot/Geometry/body/coxa/femur/tibia>,
+        </HexapodRobot/Geometry/body/coxa_2>,
+        </HexapodRobot/Geometry/body/coxa_2/femur_2>,
+        </HexapodRobot/Geometry/body/coxa_2/femur_2/tibia_2>,
+        </HexapodRobot/Geometry/body/coxa_3>,
+        </HexapodRobot/Geometry/body/coxa_3/femur_3>,
+        </HexapodRobot/Geometry/body/coxa_3/femur_3/tibia_3>,
+        </HexapodRobot/Geometry/body/coxa_4>,
+        </HexapodRobot/Geometry/body/coxa_4/femur_4>,
+        </HexapodRobot/Geometry/body/coxa_4/femur_4/tibia_4>,
+        </HexapodRobot/Geometry/body/coxa_5>,
+        </HexapodRobot/Geometry/body/coxa_5/femur_5>,
+        </HexapodRobot/Geometry/body/coxa_5/femur_5/tibia_5>,
+        </HexapodRobot/Geometry/body/coxa_6>,
+        </HexapodRobot/Geometry/body/coxa_6/femur_6>,
+        </HexapodRobot/Geometry/body/coxa_6/femur_6/tibia_6>,
+    ]
+    token isaac:robotType = "Default"
+
+    over "Geometry"
+    {
+        over "body" (
+            prepend apiSchemas = ["IsaacLinkAPI"]
+        )
+        {
+            over "coxa" (
+                prepend apiSchemas = ["IsaacLinkAPI"]
+            )
+            {
+                over "femur" (
+                    prepend apiSchemas = ["IsaacLinkAPI"]
+                )
+                {
+                    over "tibia" (
+                        prepend apiSchemas = ["IsaacLinkAPI"]
+                    )
+                    {
+                    }
+                }
+            }
+
+            over "coxa_2" (
+                prepend apiSchemas = ["IsaacLinkAPI"]
+            )
+            {
+                over "femur_2" (
+                    prepend apiSchemas = ["IsaacLinkAPI"]
+                )
+                {
+                    over "tibia_2" (
+                        prepend apiSchemas = ["IsaacLinkAPI"]
+                    )
+                    {
+                    }
+                }
+            }
+
+            over "coxa_3" (
+                prepend apiSchemas = ["IsaacLinkAPI"]
+            )
+            {
+                over "femur_3" (
+                    prepend apiSchemas = ["IsaacLinkAPI"]
+                )
+                {
+                    over "tibia_3" (
+                        prepend apiSchemas = ["IsaacLinkAPI"]
+                    )
+                    {
+                    }
+                }
+            }
+
+            over "coxa_4" (
+                prepend apiSchemas = ["IsaacLinkAPI"]
+            )
+            {
+                over "femur_4" (
+                    prepend apiSchemas = ["IsaacLinkAPI"]
+                )
+                {
+                    over "tibia_4" (
+                        prepend apiSchemas = ["IsaacLinkAPI"]
+                    )
+                    {
+                    }
+                }
+            }
+
+            over "coxa_5" (
+                prepend apiSchemas = ["IsaacLinkAPI"]
+            )
+            {
+                over "femur_5" (
+                    prepend apiSchemas = ["IsaacLinkAPI"]
+                )
+                {
+                    over "tibia_5" (
+                        prepend apiSchemas = ["IsaacLinkAPI"]
+                    )
+                    {
+                    }
+                }
+            }
+
+            over "coxa_6" (
+                prepend apiSchemas = ["IsaacLinkAPI"]
+            )
+            {
+                over "femur_6" (
+                    prepend apiSchemas = ["IsaacLinkAPI"]
+                )
+                {
+                    over "tibia_6" (
+                        prepend apiSchemas = ["IsaacLinkAPI"]
+                    )
+                    {
+                    }
+                }
+            }
+        }
+    }
+
+    over "Physics"
+    {
+        over "L1_tibia" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L1_femur" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L1_coxa" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L2_tibia" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L2_femur" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L2_coxa" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L3_tibia" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L3_femur" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L3_coxa" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L4_tibia" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L4_femur" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L4_coxa" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L5_tibia" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L5_femur" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L5_coxa" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L6_tibia" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L6_femur" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+
+        over "L6_coxa" (
+            prepend apiSchemas = ["IsaacJointAPI"]
+        )
+        {
+        }
+    }
+}
+

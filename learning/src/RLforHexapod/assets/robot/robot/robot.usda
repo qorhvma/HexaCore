@@ -1,0 +1,117 @@
+#usda 1.0
+(
+    customLayerData = {
+        string creator = "URDF USD Converter v0.3.2"
+    }
+    defaultPrim = "HexapodRobot"
+    endTimeCode = 1000000
+    kilogramsPerUnit = 1
+    metersPerUnit = 1
+    startTimeCode = 0
+    upAxis = "Z"
+)
+
+def Xform "HexapodRobot" (
+    prepend references = @./payloads/base.usda@
+    variants = {
+        string Physics = "physics"
+    }
+    append variantSets = "Physics"
+)
+{
+    over "Physics"
+    {
+        over "L1_tibia"
+        {
+            float physics:lowerLimit = -270
+            float physics:upperLimit = 0
+        }
+
+        over "L1_femur"
+        {
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 270
+        }
+
+        over "L2_tibia"
+        {
+            float physics:lowerLimit = -270
+            float physics:upperLimit = 0
+        }
+
+        over "L2_femur"
+        {
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 270
+        }
+
+        over "L3_tibia"
+        {
+            float physics:lowerLimit = -270
+            float physics:upperLimit = 0
+        }
+
+        over "L3_femur"
+        {
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 270
+        }
+
+        over "L4_tibia"
+        {
+            float physics:lowerLimit = -270
+            float physics:upperLimit = 0
+        }
+
+        over "L4_femur"
+        {
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 270
+        }
+
+        over "L5_tibia"
+        {
+            float physics:lowerLimit = -270
+            float physics:upperLimit = 0
+        }
+
+        over "L5_femur"
+        {
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 270
+        }
+
+        over "L6_tibia"
+        {
+            float physics:lowerLimit = -270
+            float physics:upperLimit = 0
+        }
+
+        over "L6_femur"
+        {
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 270
+        }
+    }
+    variantSet "Physics" = {
+        "mujoco" (
+            prepend payload = @./payloads/Physics/mujoco.usda@
+        ) {
+
+        }
+        "none" {
+
+        }
+        "physics" (
+            prepend payload = @./payloads/Physics/physics.usda@
+        ) {
+
+        }
+        "physx" (
+            prepend payload = @./payloads/Physics/physx.usda@
+        ) {
+
+        }
+    }
+}
+

@@ -1,0 +1,364 @@
+#usda 1.0
+(
+    customLayerData = {
+        string creator = "URDF USD Converter v0.3.2"
+    }
+    defaultPrim = "HexapodRobot"
+    endTimeCode = 1000000
+    kilogramsPerUnit = 1
+    metersPerUnit = 1
+    startTimeCode = 0
+    subLayers = [
+        @./physics.usda@
+    ]
+    upAxis = "Z"
+)
+
+over "HexapodRobot"
+{
+    over "Physics"
+    {
+        over "L1_tibia" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L1_femur" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L1_coxa" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L2_tibia" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L2_femur" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L2_coxa" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L3_tibia" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L3_femur" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L3_coxa" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L4_tibia" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L4_femur" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L4_coxa" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L5_tibia" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L5_femur" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L5_coxa" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L6_tibia" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L6_femur" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        over "L6_coxa" (
+            delete apiSchemas = ["PhysicsDriveAPI:angular", "PhysicsJointStateAPI:angular"]
+            prepend apiSchemas = ["MjcJointAPI"]
+        )
+        {
+        }
+
+        def MjcActuator "L1_tibia_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 1.8632999658584595
+            uniform double mjc:forceRange:min = -1.8632999658584595
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L1_tibia>
+        }
+
+        def MjcActuator "L1_femur_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 1.8632999658584595
+            uniform double mjc:forceRange:min = -1.8632999658584595
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L1_femur>
+        }
+
+        def MjcActuator "L1_coxa_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 0.9218000173568726
+            uniform double mjc:forceRange:min = -0.9218000173568726
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L1_coxa>
+        }
+
+        def MjcActuator "L2_tibia_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 1.8632999658584595
+            uniform double mjc:forceRange:min = -1.8632999658584595
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L2_tibia>
+        }
+
+        def MjcActuator "L2_femur_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 1.8632999658584595
+            uniform double mjc:forceRange:min = -1.8632999658584595
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L2_femur>
+        }
+
+        def MjcActuator "L2_coxa_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 0.9218000173568726
+            uniform double mjc:forceRange:min = -0.9218000173568726
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L2_coxa>
+        }
+
+        def MjcActuator "L3_tibia_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 1.8632999658584595
+            uniform double mjc:forceRange:min = -1.8632999658584595
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L3_tibia>
+        }
+
+        def MjcActuator "L3_femur_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 1.8632999658584595
+            uniform double mjc:forceRange:min = -1.8632999658584595
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L3_femur>
+        }
+
+        def MjcActuator "L3_coxa_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 0.9218000173568726
+            uniform double mjc:forceRange:min = -0.9218000173568726
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L3_coxa>
+        }
+
+        def MjcActuator "L4_tibia_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 1.8632999658584595
+            uniform double mjc:forceRange:min = -1.8632999658584595
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L4_tibia>
+        }
+
+        def MjcActuator "L4_femur_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 1.8632999658584595
+            uniform double mjc:forceRange:min = -1.8632999658584595
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L4_femur>
+        }
+
+        def MjcActuator "L4_coxa_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 0.9218000173568726
+            uniform double mjc:forceRange:min = -0.9218000173568726
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L4_coxa>
+        }
+
+        def MjcActuator "L5_tibia_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 1.8632999658584595
+            uniform double mjc:forceRange:min = -1.8632999658584595
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L5_tibia>
+        }
+
+        def MjcActuator "L5_femur_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 1.8632999658584595
+            uniform double mjc:forceRange:min = -1.8632999658584595
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L5_femur>
+        }
+
+        def MjcActuator "L5_coxa_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 0.9218000173568726
+            uniform double mjc:forceRange:min = -0.9218000173568726
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L5_coxa>
+        }
+
+        def MjcActuator "L6_tibia_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 1.8632999658584595
+            uniform double mjc:forceRange:min = -1.8632999658584595
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L6_tibia>
+        }
+
+        def MjcActuator "L6_femur_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 1.8632999658584595
+            uniform double mjc:forceRange:min = -1.8632999658584595
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L6_femur>
+        }
+
+        def MjcActuator "L6_coxa_actuator"
+        {
+            uniform double[] mjc:biasPrm = [0, -1.7453292608261108, -0.01745329238474369, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:biasType = "affine"
+            uniform double mjc:forceRange:max = 0.9218000173568726
+            uniform double mjc:forceRange:min = -0.9218000173568726
+            uniform double[] mjc:gainPrm = [1.7453292608261108, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            uniform token mjc:gainType = "fixed"
+            custom rel mjc:target
+            append rel mjc:target = </HexapodRobot/Physics/L6_coxa>
+        }
+    }
+}
+
