@@ -1,0 +1,64 @@
+site_name: HexaCore 빌드 가이드
+site_description: 저가 서보로 만든 6족 계단 등반 로봇 HexaCore를 다시 만드는 방법
+site_author: 오연우, 박수용, 양서진
+# 저장소 주소를 바꾸면 여기만 고치면 된다. 문서 안의 repo: 링크가 이 값을 따라간다.
+repo_url: https://github.com/qorhvma/HexaCore
+repo_name: HexaCore
+edit_uri: edit/main/docs/
+copyright: 코드 MIT · 하드웨어 CERN-OHL-P-2.0 · 문서 CC BY 4.0
+
+theme:
+  name: material
+  language: ko
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: blue
+      toggle: { icon: material/weather-night, name: 어두운 화면 }
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: blue
+      toggle: { icon: material/weather-sunny, name: 밝은 화면 }
+  features:
+    - navigation.sections
+    - navigation.footer
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+
+hooks:
+  - tools/docs/hooks.py
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+      # 한글 제목도 앵커가 되도록 (기본 slugify는 한글을 지운다)
+      slugify: !!python/object/apply:pymdownx.slugs.slugify { kwds: { case: lower } }
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - 소개: index.md
+  - 만들기:
+      - 1. 부품 구매: build/parts.md
+      - 2. 3D 프린팅: build/print.md
+      - 3. 제어 PCB: build/pcb.md
+      - 4. 조립·배선: build/assembly.md
+      - 5. 펌웨어 올리기: build/firmware.md
+      - 6. 서보 보정: build/calibration.md
+      - 7. 라즈베리파이 설정: build/raspberrypi.md
+      - 8. 조종: build/operate.md
+  - 참고:
+      - 시스템 구조: reference/system.md
+      - 강화학습: reference/learning.md
+      - 문제 해결: reference/troubleshooting.md
+      - 라이선스: reference/license.md

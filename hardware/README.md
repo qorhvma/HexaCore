@@ -43,5 +43,5 @@ URDF는 [`learning/src/RLforHexapod/assets/urdf/robot.urdf`](../learning/src/RLf
 
 - 볼트·너트·배선 목록, 일부 부품 가격 ([BOM](bom/BOM.csv)의 *상태* 열)
 - PCB 원본(EasyEDA Pro)과 회로도 PDF
-- 조립 순서·사진 (빌드 가이드에서 다룰 예정)
+- 조립 사진 ([빌드 가이드](https://qorhvma.github.io/HexaCore/build/assembly/)에 작성 중)
 - 서보·배터리·서보 혼·컨버터 메시(`learning/.../assets/assets/`의 `mg996r`, `rc9mg`, `motorhorn`, `hw674`, `battery`)는 시뮬레이션용이고 출처를 확인하고 있습니다.

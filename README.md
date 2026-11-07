@@ -42,7 +42,7 @@ flowchart LR
     FT["발 접촉 스위치 ×6"] --> ESP
 ```
 
-- **ESP32** ([`firmware/`](firmware/)): `<다리,관절,각도>` 명령을 받아 서보를 움직이고, IMU 자세(100 Hz)·발 접촉·하트비트를 돌려보냅니다. 명령이 0.5초 끊기면 서기 자세로 멈춥니다.
+- **ESP32** ([`firmware/`](firmware/)): `<다리,관절,각도>` 명령을 받아 서보를 움직이고, IMU 자세(100 Hz)·발 접촉·하트비트를 돌려보냅니다. 조종 명령이 0.5초 끊기면 라즈베리파이가 걸음을 멈춥니다.
 - **Raspberry Pi** ([`software/raspberrypi/`](software/raspberrypi/)): 삼각 보행 50 Hz, 2D 점유 격자 지도 5 Hz, WebSocket 서버.
 - **PC** ([`software/pc/`](software/pc/), [`software/dashboard/`](software/dashboard/)): WASD 조종, 지도·센서 대시보드.
 
@@ -118,7 +118,9 @@ python3 software/pc/pc_client.py --host localhost
 
 ![자체 설계 PCB](docs/images/pcb_render.jpg)
 
-## 빌드 가이드 (작성 중)
+## 빌드 가이드
+
+**[qorhvma.github.io/HexaCore](https://qorhvma.github.io/HexaCore/)** — 부품 구매부터 조종까지 단계별로 정리했습니다 (조립 사진·회로도는 작성 중). 원본은 [`docs/`](docs/)입니다.
 
 1. 부품 구매 — [`hardware/bom/BOM.csv`](hardware/bom/BOM.csv)
 2. 3D 프린팅 — [STL 10종 51개](hardware/README.md#3d-프린팅-부품), CAD 원본은 [Onshape](https://cad.onshape.com/documents/f646c0fde8bd91cfa43cbae7/w/279609403375cff4404c6eae/e/76a6985095c8e8f19d67aec6)
