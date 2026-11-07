@@ -7,12 +7,17 @@ teacher와 student를 같은 조건으로 비교한다.
 
     uv run python scripts/eval_stairs.py --task Hexapod-Stair --checkpoint <teacher.pt>
     uv run python scripts/eval_stairs.py --task Hexapod-Stair-Student-A --checkpoint <student.pt>
+
+환경 수(--num_envs)가 곧 시행 수 N이다. --out을 주면 결과를 JSON으로도 남긴다.
 """
 
 import argparse
 import contextlib
+import hashlib
 import importlib.metadata
+import json
 import sys
+from pathlib import Path
 
 import torch
 
@@ -65,12 +70,16 @@ def summarize(data, mask, final_advance, done_move, step_dt):
     length = data["length"][mask]
     top_step = data["top_step"][mask]
     count = len(ended)
-    reached_top = (ended >= final_advance).float().mean().item()
+    reached_top_count = int((ended >= final_advance).sum().item())
+    success_count = int((ended == done_move).sum().item())
+    reached_top = reached_top_count / count
     result = {
         "count": count,
+        "reached_top_count": reached_top_count,
         "reached_top": reached_top,
         "margin": 1.96 * (reached_top * (1.0 - reached_top) / count) ** 0.5,  # 95% 신뢰구간 반폭
-        "success": (ended == done_move).float().mean().item(),
+        "success_count": success_count,
+        "success": success_count / count,
         "mean_move": ended.float().mean().item(),
         "move_counts": torch.bincount(ended, minlength=done_move + 1).tolist(),
         "reasons": dict(zip(data["term_names"], data["reasons"][mask].float().mean(dim=0).tolist(), strict=True)),
@@ -86,16 +95,19 @@ def summarize(data, mask, final_advance, done_move, step_dt):
     return result
 
 
-def format_report(data, final_advance, done_move, step_dt):
-    """전체와 시작 위치별 결과를 글로 만든다."""
+def summarize_groups(data, final_advance, done_move, step_dt):
+    """전체와 시작 위치별 결과. [(이름, 결과), ...]"""
     start = data["start"]
-    lines = [f"꼭대기 도달 = 단계 {final_advance} 이상, 정지 성공 = 단계 {done_move}"]
     groups = [("전체", torch.ones_like(start, dtype=torch.bool))]
     for value in start.unique().tolist():
         groups.append((START_NAMES.get(value, f"{value}번"), start == value))
+    return [(name, summarize(data, mask, final_advance, done_move, step_dt)) for name, mask in groups]
 
-    for name, mask in groups:
-        result = summarize(data, mask, final_advance, done_move, step_dt)
+
+def format_report(groups, final_advance, done_move):
+    """summarize_groups 결과를 글로 만든다."""
+    lines = [f"꼭대기 도달 = 단계 {final_advance} 이상, 정지 성공 = 단계 {done_move}"]
+    for name, result in groups:
         reasons_text = ", ".join(f"{k} {v:.1%}" for k, v in result["reasons"].items() if v > 0)
         moves_text = " ".join(f"{k}:{v}" for k, v in enumerate(result["move_counts"]) if v > 0)
         if result["top_time"] is None:
@@ -105,8 +117,9 @@ def format_report(data, final_advance, done_move, step_dt):
         lines += [
             "",
             f"[{name}] {result['count']}대",
-            f"  꼭대기 도달: {result['reached_top']:.1%} (±{result['margin']:.1%})",
-            f"  정지 성공:   {result['success']:.1%}",
+            f"  꼭대기 도달: {result['reached_top_count']}/{result['count']} = {result['reached_top']:.1%}"
+            f" (95% 신뢰구간 ±{result['margin']:.1%})",
+            f"  정지 성공:   {result['success_count']}/{result['count']} = {result['success']:.1%}",
             f"  평균 단계:   {result['mean_move']:.2f} / {done_move}",
             f"  끝난 단계:   {moves_text}",
             f"  종료 이유:   {reasons_text}",
@@ -133,6 +146,7 @@ def main():
     parser.add_argument("--checkpoint", required=True, help="불러올 .pt 파일")
     parser.add_argument("--num_envs", type=int, default=4096)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--out", default=None, help="결과를 저장할 JSON 파일 (선택)")
     add_launcher_args(parser)
     args, remaining = setup_preset_cli(parser, sys.argv[1:])
     sys.argv = [sys.argv[0]] + remaining
@@ -165,8 +179,29 @@ def main():
             env.unwrapped.termination_manager,
             env.unwrapped.max_episode_length + 1,
         )
+        groups = summarize_groups(data, tracker.final_advance, tracker.done_move, env.unwrapped.step_dt)
         print(f"\n===== {args.task} =====")
-        print(format_report(data, tracker.final_advance, tracker.done_move, env.unwrapped.step_dt))
+        print(format_report(groups, tracker.final_advance, tracker.done_move))
+        if args.out:
+            write_json(args, groups, tracker.final_advance, tracker.done_move)
+
+
+def write_json(args, groups, final_advance, done_move):
+    """다시 확인할 수 있게 조건(task·체크포인트 해시·시드·N)과 결과를 함께 남긴다."""
+    checkpoint = Path(args.checkpoint)
+    record = {
+        "task": args.task,
+        "checkpoint": checkpoint.name,
+        "checkpoint_sha256": hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
+        "seed": args.seed,
+        "num_envs": args.num_envs,
+        "definition": {"reached_top": f"단계 {final_advance} 이상", "success": f"단계 {done_move}"},
+        "groups": {name: result for name, result in groups},
+    }
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[INFO] 결과 저장: {out}")
 
 
 if __name__ == "__main__":

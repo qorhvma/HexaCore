@@ -73,7 +73,7 @@ flowchart LR
 | Teacher | 단높이 160 mm × 3단 + 꼭대기, 단너비 300 mm (경사 28.1°) | 꼭대기 도착 확인 — 고정 시드 평가(k/N) 정리 중 |
 | Student | 같은 계단 | 약 80% (개선 중) — 고정 시드 평가(k/N) 정리 중 |
 
-성공 = 꼭대기 도착. 평가 스크립트: [`learning/scripts/eval_stairs.py`](learning/scripts/eval_stairs.py)
+성공 = 꼭대기 도착. 평가 스크립트: [`learning/scripts/eval_stairs.py`](learning/scripts/eval_stairs.py), 설치·학습·평가·ONNX 내보내기 명령: [`learning/README.md`](learning/README.md#다시-해-보기)
 
 | 계단 | 경사 (atan 단높이/단너비) |
 |---|---|
