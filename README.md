@@ -111,18 +111,18 @@ python3 software/pc/pc_client.py --host localhost
 | [`firmware/`](firmware/) | ESP32 펌웨어 (`firmware/` 현재판, `myFirmware/` 최종판 예정) + 서보 점검·캘리브레이션 도구 |
 | [`software/`](software/) | 라즈베리파이 상위 제어기, PC 조종 클라이언트, 대시보드 |
 | [`learning/`](learning/) | Isaac Lab 3.0 강화학습 환경 (걷기, 계단 teacher, student 증류) |
-| [`hardware/`](hardware/) | CAD 설정, PCB 거버 (BOM·STL·회로도 추가 예정) |
+| [`hardware/`](hardware/) | 부품 목록(BOM), 3D 프린팅 STL, Onshape CAD 링크, PCB 거버·핀 배치 |
 | [`data/`](data/) | 실측 데이터 (포텐 개조 서보 각도 스윕) |
-| [`tools/`](tools/) | 2D 기구학·계단 발판 탐색, 정책 ONNX 변환 |
+| [`tools/`](tools/) | 2D 기구학·계단 발판 탐색, 정책 ONNX 변환, 프린팅용 STL 변환 |
 | [`legacy/`](legacy/) | 강화학습 이전, PC에서 블루투스로 직접 조종하던 규칙 기반 보행·계단 코드 |
 
 ![자체 설계 PCB](docs/images/pcb_render.jpg)
 
 ## 빌드 가이드 (작성 중)
 
-1. 부품 구매 (BOM)
-2. 3D 프린팅
-3. PCB 주문·납땜 — 거버: [`hardware/pcb/gerber/`](hardware/pcb/gerber/)
+1. 부품 구매 — [`hardware/bom/BOM.csv`](hardware/bom/BOM.csv)
+2. 3D 프린팅 — [STL 10종 51개](hardware/README.md#3d-프린팅-부품), CAD 원본은 [Onshape](https://cad.onshape.com/documents/f646c0fde8bd91cfa43cbae7/w/279609403375cff4404c6eae/e/76a6985095c8e8f19d67aec6)
+3. PCB 주문·납땜 — [거버·핀 배치](hardware/pcb/)
 4. 조립
 5. 펌웨어 업로드
 6. 서보 캘리브레이션 — [`firmware/tools/`](firmware/tools/)
