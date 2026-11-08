@@ -42,6 +42,78 @@ SEND_INTERVAL = 0.03                # 슬라이더를 끌 때 최대 전송 간�
 FOOT_STALE_SEC = 0.3                # 이 시간 동안 #ft 가 안 오면 회색(모름) 표시 (펌웨어는 100ms마다 보냄)
 MAC_RE = re.compile(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 
+# ---- firmware/firmware/firmware.ino 의 각도→틱 변환 값 (펌웨어를 고치면 여기도 맞출 것) ------
+ANGLE_GAIN = 0.8                    # 관절 1도 → 서보 0.8도
+CAL_ANG = [40, 65, 30]
+TICKS_PER_DEG = 11.111 / 4.889
+TICK_90_NOMINAL = 307
+#         hip  femur tibia
+FW_TCAL = [[177, 234, 184], [184, 233, 170], [182, 251, 171],
+           [191, 237, 183], [193, 227, 166], [195, 229, 179]]
+FW_DIR = [[1, 1, 1], [1, 1, 1], [1, 1, 1], [-1, 1, 1], [-1, 1, 1], [-1, 1, 1]]
+FW_OFS = [[0, 0, 0], [0, 0, 0], [0, 0, -10], [0, 0, 0], [0, 0, 0], [0, 0, 0]]
+
+# ---- 모터 캘리브레이션 -----------------------------------------------------------
+# 틱 70 / 285 / 500 (서보 0° / 90° / 180°) 일 때 가변저항 ADC 값 (ESP32 12비트)
+CALIB_TICK = (70, 285, 500)
+# 모터 번호 - 1 = 다리 × 3 + 채널 (채널 0 = tibia, 1 = femur, 2 = hip)
+CALIB_POT = [
+    (444, 2246, 4088), (426, 2227, 4058), (466, 2161, 3789),
+    (464, 2353, 4080), (365, 2187, 3937), (263, 1917, 3608),
+    (663, 2362, 3935), (357, 2186, 3972), (555, 2236, 3854),
+    (339, 2020, 3666), (356, 2199, 3979), (510, 2209, 3852),
+    (367, 2223, 4006), (275, 2098, 3862), (332, 2008, 3680),
+    (202, 1945, 3763), (956, 2879, 3919), (533, 2271, 3836),
+]
+# 90° 값을 믿기 어려워 가변저항 보정 없이 틱 70~500 직선으로만 쓰는 모터 (재측정하면 빼기)
+CALIB_STRAIGHT = {17}
+
+# 다리를 수평 일자로 편 자세의 관절 각도 (hip, femur, tibia)
+EXTENDED_ANG = [180, 180, 180]
+# 그 자세를 만드는, 펌웨어로 그대로 보낸 관절 각도. 보정 후엔 이 자세가 EXTENDED_ANG 로 표시된다
+EXTENDED_RAW = [[180, 197, 197], [166, 185, 209], [187, 173, 210],
+                [180, 179, 173], [195, 187, 185], [180, 187, 147]]
+
+
+def servo_to_tick(motor, servo_deg):
+    """motor(0~17)를 서보 각도 servo_deg 로 보내는 틱. 가변저항 값이 각도에 비례한다고 본다."""
+    t0, t90, t180 = CALIB_TICK
+    if motor + 1 in CALIB_STRAIGHT:
+        return t0 + servo_deg * (t180 - t0) / 180
+    p0, p90, p180 = CALIB_POT[motor]
+    pot = p0 + (p180 - p0) * servo_deg / 180
+    if pot <= p90:
+        return t0 + (pot - p0) * (t90 - t0) / (p90 - p0)
+    return t90 + (pot - p90) * (t180 - t90) / (p180 - p90)
+
+
+def tick_to_servo(motor, tick):
+    """servo_to_tick 의 역변환."""
+    t0, t90, t180 = CALIB_TICK
+    if motor + 1 in CALIB_STRAIGHT:
+        return (tick - t0) * 180 / (t180 - t0)
+    p0, p90, p180 = CALIB_POT[motor]
+    if tick <= t90:
+        pot = p0 + (tick - t0) * (p90 - p0) / (t90 - t0)
+    else:
+        pot = p90 + (tick - t90) * (p180 - p90) / (t180 - t90)
+    return (pot - p0) * 180 / (p180 - p0)
+
+
+def calibrated_joint(l, j, joint_deg):
+    """관절 각도 → 펌웨어로 보낼 각도. EXTENDED_ANG 에서 EXTENDED_RAW 가 나가고, 그 차이만큼 캘리브레이션대로 움직인다."""
+    motor = l * 3 + 2 - j
+    d = FW_DIR[l][j]
+    t_cal = FW_TCAL[l][j]
+    sign = -1 if t_cal > TICK_90_NOMINAL else 1
+    raw = EXTENDED_RAW[l][j]
+    fw_servo = 90 + d * (raw + FW_OFS[l][j] - REF_ANG[j]) * ANGLE_GAIN
+    extended_tick = t_cal + (fw_servo - CAL_ANG[j]) * TICKS_PER_DEG * sign
+    servo = tick_to_servo(motor, extended_tick) + d * (joint_deg - EXTENDED_ANG[j]) * ANGLE_GAIN
+    tick = servo_to_tick(motor, servo)
+    fw_servo = CAL_ANG[j] + (tick - t_cal) / (TICKS_PER_DEG * sign)
+    return REF_ANG[j] - FW_OFS[l][j] + d * (fw_servo - 90) / ANGLE_GAIN
+
 
 # ---- 연결 (블루투스 주소 / 시리얼 포트 둘 다) ---------------------------------
 class Link:
@@ -95,9 +167,11 @@ class Link:
 
 # ---- 화면 -------------------------------------------------------------------
 class App:
-    def __init__(self, root, target):
+    def __init__(self, root, target, use_calib=True):
         self.root = root
         self.target = target
+        self.use_calib = use_calib
+        self.synced = False             # 이번 연결에서 18개 관절을 전부 보냈나
         self.link = None
         self.rx_queue = queue.Queue()
         self.pending = {}               # (다리, 관절) → 보낼 각도 (끌 때 몰아서 보냄)
@@ -186,6 +260,7 @@ class App:
         if self.link:
             self.link.close()
             self.link = None
+        self.synced = False
         self.status.config(text=f"{self.target} 연결 중…", fg="gray")
         self.root.update_idletasks()
         try:
@@ -257,7 +332,15 @@ class App:
     def flush(self):
         if not self.pending or time.time() - self.last_flush < SEND_INTERVAL:
             return
-        data = b"".join(f"<{l},{j},{d}>\n".encode() for (l, j), d in self.pending.items())
+        if self.use_calib and not self.synced:
+            # 펌웨어는 첫 명령에 18개를 전부 켜므로, 안 보낸 관절은 보정 없는 기준값으로 움직인다
+            self.synced = True
+            for l in range(6):
+                for j in range(3):
+                    self.pending.setdefault((l, j), self.vars[l][j].get())
+        data = b"".join(
+            f"<{l},{j},{calibrated_joint(l, j, d) if self.use_calib else d:.2f}>\n".encode()
+            for (l, j), d in self.pending.items())
         self.pending.clear()
         self.last_flush = time.time()
         self.send(data)
@@ -361,9 +444,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--robot", required=True,
                     help="블루투스 주소(AA:BB:..) 또는 포트(/dev/ttyUSB0, /dev/rfcomm0, COM7)")
+    ap.add_argument("--no-calib", action="store_true", help="모터 캘리브레이션 없이 슬라이더 각도를 그대로 전송")
     a = ap.parse_args()
     root = tk.Tk()
-    App(root, a.robot)
+    App(root, a.robot, use_calib=not a.no_calib)
     root.mainloop()
 
 
