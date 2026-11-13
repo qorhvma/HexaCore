@@ -26,17 +26,17 @@ LIBS=()
 command -v pinctrl >/dev/null || { echo "pinctrl 이 없음 (Raspberry Pi OS 의 raspi-utils). sudo apt install raspi-utils"; exit 1; }
 command -v arduino-cli >/dev/null || { echo "arduino-cli 가 없음. 설치: curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=~/.local/bin sh"; exit 1; }
 
-pin() { pinctrl set "$1" "$2"; }          # op dl = 출력 LOW (누름), ip pu = 입력 + 풀업 (놓음)
-release() { pin "$BOOT" "ip pu"; pin "$EN" "ip pu"; }
+pin() { local g="$1"; shift; pinctrl set "$g" "$@"; }   # pin 24 op dl = 출력 LOW (누름), pin 24 ip pu = 입력 + 풀업 (놓음)
+release() { pin "$BOOT" ip pu; pin "$EN" ip pu; }
 reset_run() {                              # BOOT 놓은 채 리셋 → 펌웨어 실행
-  pin "$BOOT" "ip pu"
-  pin "$EN" "op dl"; sleep 0.15; pin "$EN" "ip pu"
+  pin "$BOOT" ip pu
+  pin "$EN" op dl; sleep 0.15; pin "$EN" ip pu
 }
 download_mode() {                          # BOOT 누른 채 리셋 → ROM 업로드 모드에서 기다림
-  pin "$BOOT" "op dl"
-  pin "$EN" "op dl"; sleep 0.15; pin "$EN" "ip pu"
+  pin "$BOOT" op dl
+  pin "$EN" op dl; sleep 0.15; pin "$EN" ip pu
   sleep 0.3
-  pin "$BOOT" "ip pu"                       # ROM 이 이미 업로드 모드로 들어갔으므로 놓아도 됨
+  pin "$BOOT" ip pu                       # ROM 이 이미 업로드 모드로 들어갔으므로 놓아도 됨
 }
 trap release EXIT
 
