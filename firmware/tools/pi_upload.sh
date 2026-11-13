@@ -23,10 +23,43 @@ FULL_FQBN="$FQBN:UploadSpeed=$SPEED"     # 컴파일과 업로드에 같은 FQBN
 LIBS=()
 [ -d "$HOME/Arduino/libraries" ] && LIBS=(--libraries "$HOME/Arduino/libraries")   # Arduino IDE 로 깐 라이브러리
 
-command -v pinctrl >/dev/null || { echo "pinctrl 이 없음 (Raspberry Pi OS 의 raspi-utils). sudo apt install raspi-utils"; exit 1; }
-command -v arduino-cli >/dev/null || { echo "arduino-cli 가 없음. 설치: curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=~/.local/bin sh"; exit 1; }
+# sudo 로 전체를 돌리면 root 의 arduino-cli 설정(보드 패키지·라이브러리 없음)을 써 버린다 → 사용자로 돌리고 pinctrl 만 sudo
+if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
+  echo "sudo 없이 실행할 것:  $0   (GPIO 를 바꿀 때만 스크립트가 sudo 를 쓴다)"
+  exit 1
+fi
 
-pin() { local g="$1"; shift; pinctrl set "$g" "$@"; }   # pin 24 op dl = 출력 LOW (누름), pin 24 ip pu = 입력 + 풀업 (놓음)
+command -v pinctrl >/dev/null || { echo "pinctrl 이 없음 (Raspberry Pi OS 의 raspi-utils). sudo apt install raspi-utils"; exit 1; }
+PINCTRL=(pinctrl)
+if [ "$(id -u)" -ne 0 ]; then
+  PINCTRL=(sudo pinctrl)               # 이 파이는 pinctrl 에 root 가 필요하다 ("Must be root")
+  sudo -v                              # 비밀번호를 물으면 여기서 한 번만
+fi
+
+# arduino-cli: PATH → ~/.local/bin → ~/bin → Arduino IDE 2 안에 들어 있는 것
+ARDUINO_CLI="$(command -v arduino-cli || true)"
+if [ -z "$ARDUINO_CLI" ]; then
+  for c in "$HOME/.local/bin/arduino-cli" "$HOME/bin/arduino-cli" \
+           /opt/arduino-ide*/resources/app/lib/backend/resources/arduino-cli \
+           /usr/share/arduino-ide*/resources/app/lib/backend/resources/arduino-cli \
+           "$HOME"/arduino-ide*/resources/app/lib/backend/resources/arduino-cli \
+           "$HOME"/Applications/arduino-ide*/resources/app/lib/backend/resources/arduino-cli; do
+    if [ -x "$c" ]; then ARDUINO_CLI="$c"; break; fi
+  done
+fi
+if [ -z "$ARDUINO_CLI" ]; then
+  echo "arduino-cli 를 못 찾음. 설치 (한 번만):"
+  echo "  mkdir -p ~/.local/bin && curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=~/.local/bin sh"
+  exit 1
+fi
+echo "arduino-cli: $ARDUINO_CLI"
+if ! "$ARDUINO_CLI" core list 2>/dev/null | grep -q '^esp32:esp32'; then
+  echo "ESP32 보드 패키지(esp32:esp32)가 없음. 설치 (한 번만, 몇 분 걸림):"
+  echo "  $ARDUINO_CLI core install esp32:esp32 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json"
+  exit 1
+fi
+
+pin() { local g="$1"; shift; "${PINCTRL[@]}" set "$g" "$@"; }   # pin 24 op dl = 출력 LOW (누름), pin 24 ip pu = 입력 + 풀업 (놓음)
 release() { pin "$BOOT" ip pu; pin "$EN" ip pu; }
 reset_run() {                              # BOOT 놓은 채 리셋 → 펌웨어 실행
   pin "$BOOT" ip pu
@@ -53,13 +86,13 @@ if pgrep -f robot_main.py >/dev/null; then
 fi
 
 echo "[1/3] 컴파일: $SKETCH ($FQBN)"
-arduino-cli compile --fqbn "$FULL_FQBN" "${LIBS[@]}" "$SKETCH"
+"$ARDUINO_CLI" compile --fqbn "$FULL_FQBN" "${LIBS[@]}" "$SKETCH"
 
 echo "[2/3] 업로드 모드로 (BOOT=GPIO$BOOT, EN=GPIO$EN)"
 download_mode
 
 echo "[3/3] 업로드: $PORT @ $SPEED"
-if ! arduino-cli upload -p "$PORT" --fqbn "$FULL_FQBN" "$SKETCH"; then
+if ! "$ARDUINO_CLI" upload -p "$PORT" --fqbn "$FULL_FQBN" "$SKETCH"; then
   echo "업로드 실패. 느린 속도로 다시: UPLOAD_SPEED=115200 $0"
   exit 1
 fi
