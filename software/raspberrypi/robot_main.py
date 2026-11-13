@@ -28,6 +28,7 @@ from firmware_link import FirmwareLink, STAND_POSE, NUM_LEGS
 from lidar_l2 import UnitreeL2
 from mapping import OccupancyGrid, Pose2D
 from pc_link import PcServer
+from ik_gait import IkTripodGait
 
 
 VERSION = "0.3.0-pi"
@@ -82,7 +83,8 @@ class RobotNode:
         self.cmd = {"vx": 0.0, "vy": 0.0, "wz": 0.0, "t": 0.0}
         self.mode = "idle"                   # idle | stand | walk | estop
         self.safety = []
-        self.gait = TripodGait()
+        # 기본은 IK 보행 (모터 캘리브레이션·최종 CAD 치수 기반). --gait sine 이면 예전 관절 사인파 보행
+        self.gait = TripodGait() if getattr(args, "gait", "ik") == "sine" else IkTripodGait(STAND_POSE)
         self._lock = threading.Lock()
         self._stop = threading.Event()
 
@@ -197,24 +199,33 @@ class RobotNode:
         wy = y + band[:, 0] * s + band[:, 1] * c
         return np.round(np.stack([wx, wy], axis=1), 3).tolist()
 
+    def _gait_reset(self):
+        """서기 자세에서 다시 시작 (IK 보행은 발 위치를 기억하므로 자세가 바뀌면 지워야 한다)."""
+        if hasattr(self.gait, "reset"):
+            self.gait.reset()
+
     def handle_command(self, msg):
         cmd = msg.get("cmd")
         if cmd == "walk":
             if self.mode in ("idle", "estop"):
+                self._gait_reset()
                 self.mode = "stand"
             self.set_cmd_vel(msg.get("vx", 0), msg.get("vy", 0), msg.get("wz", 0))
         elif cmd == "stop":
             self.set_cmd_vel(0, 0, 0)
         elif cmd == "stand":
             self.mode = "stand"
+            self._gait_reset()
             self.fw.stand()
         elif cmd == "power_off":
             self.mode = "idle"
             self.set_cmd_vel(0, 0, 0)
+            self._gait_reset()
             self.fw.power_off()
         elif cmd == "estop":
             self.mode = "estop"
             self.set_cmd_vel(0, 0, 0)
+            self._gait_reset()
             self.fw.power_off()
         elif cmd == "joint":
             self.fw.send_joint(int(msg["leg"]), int(msg["joint"]), float(msg["deg"]))
@@ -252,6 +263,8 @@ def main():
     ap.add_argument("--port", default=os.environ.get("HEXAPOD_SERIAL", "/dev/ttyUSB0"), help="ESP32 시리얼 포트")
     ap.add_argument("--ws-port", type=int, default=8765)
     ap.add_argument("--sim", action="store_true", help="ESP32·라이다 없이 시뮬레이션")
+    ap.add_argument("--gait", choices=("ik", "sine"), default="ik",
+                    help="ik = 역기구학 보행 (기본, ik_gait.py), sine = 예전 관절 사인파 보행")
     ap.add_argument("--no-lidar", action="store_true")
     RobotNode(ap.parse_args()).start()
 

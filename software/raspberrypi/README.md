@@ -9,6 +9,9 @@
 | 파일 | 역할 |
 |---|---|
 | `robot_main.py` | 메인 노드: 보행(tripod) 50Hz, 지도 갱신 5Hz, 안전 정지, WebSocket 서버 실행 |
+| `ik_gait.py` | IK 삼각 보행 (기본). 발끝 궤적 → 역기구학, 캘리브레이션 범위·관절 속도·보폭 한계 안에서만 |
+| `leg_model.py` | 모터 캘리브레이션(펌웨어 `SV`/`JOINT_OFS`/틱 한계) + 최종 CAD 치수 → 관절 범위, FK/IK |
+| `gait_check.py` | 보행 점검: 로봇 없이 시뮬레이션 검사, `--identify` 로 실물 다리 번호·방향 확인 |
 | `firmware_link.py` | ESP32 펌웨어 제어: `<다리,관절,각도>` 전송, `#hb/#ft/#imu/#env` 파싱 |
 | `pc_link.py` | Pi ↔ PC 통신: WebSocket + JSON (텔레메트리 10Hz, 스캔 5Hz, 지도 1Hz) |
 | `lidar_l2.py` | Unitree L2 제어: 회전 시작/정지, 작업 모드, 리셋, 스캔 수신 |
@@ -31,6 +34,23 @@ python3 robot_main.py                       # 실제 하드웨어 (없는 장치
 python3 robot_main.py --sim                 # 전부 시뮬레이션 — PC 에서도 동작
 python3 robot_main.py --port /dev/serial0   # GPIO UART 로 ESP32 연결 시
 ```
+
+### 보행
+
+기본은 IK 보행(`ik_gait.py`)이다. 예전 관절 사인파 보행은 `python3 robot_main.py --gait sine`.
+
+- 관절 범위는 `leg_model.py` 의 캘리브레이션 값(= `firmware/firmware/firmware.ino` 의 `SV`, `JOINT_OFS`, `TICK_HARD_MIN/MAX`)에서
+  계산한다. **펌웨어 캘리브레이션을 바꾸면 `leg_model.py` 도 같이 고칠 것.**
+- 서기 높이에서 계산한 보폭 49.7mm, 직진 최고 약 0.10 m/s (tibia 최소 각도가 보폭을 막는다).
+- 처음 쓰기 전에 (몸통을 받침에 올리고):
+
+```bash
+python3 gait_check.py                                  # 로봇 없이 안전 조건 검사 (통과해야 함)
+python3 gait_check.py --identify --port /dev/ttyUSB0   # 다리 번호·hip 방향 가정 확인
+```
+
+`--identify` 에서 화면에 적힌 위치의 다리가 '앞으로 돌고 → 위로 들리지' 않으면 `leg_model.LAYOUT` 을 고친다.
+가정: 펌웨어 다리 0 왼앞, 1 왼가운데, 2 왼뒤, 3 오른뒤, 4 오른가운데, 5 오른앞, hip 각도 + = 앞쪽.
 
 PC 에서:
 
