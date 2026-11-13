@@ -142,6 +142,13 @@ def offline():
         print(f"  다리 {l} {lm.LEG_NAMES[l]:<5} {lims}  |  {fw} 틱 {ticks}")
     gait = g.IkTripodGait()
     print(f"서기 발 높이 {gait.ground:.1f}mm (몸통 원점 기준), 보폭 {gait.stride:.1f}mm, 직진 최고 {gait.max_speed():.3f} m/s")
+    if not lm.USE_JOINT_POINTS:
+        print("  (HEXAPOD_JOINT_POINTS=0 → 측정점 무시, pose_gui 보정만)")
+    warn = gait.walk_warning()
+    if warn:
+        print("★ " + warn)
+        print("결과: 실패 (걸을 수 없음)")
+        return 1
 
     scen = [
         ("전진 최고", [(4, 0.12, 0, 0), (2, 0, 0, 0)]),

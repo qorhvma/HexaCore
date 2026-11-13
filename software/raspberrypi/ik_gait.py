@@ -98,6 +98,21 @@ class IkTripodGait:
         """서기 자세를 펌웨어로 보낼 각도 (캘리브레이션 적용). firmware_link.stand() 대신 이걸 보낸다."""
         return lm.pose_to_firmware(self.stand_pose)
 
+    def walk_warning(self, min_stride=30.0):
+        """걷기 어려우면 이유를 글로 (괜찮으면 None)."""
+        if self.stride >= min_stride:
+            return None
+        tight = lm.stand_margins()
+        why = ", ".join(f"다리 {l} {n} 범위 끝까지 {m:.0f}° ({src})" for l, n, m, src in tight) or "알 수 없음"
+        fix = []
+        if any(src.startswith("측정 1") for *_, src in tight):
+            fix.append("측정점이 1개뿐인 관절이 있음 → calibrate_joints.py 로 ②③ 도 잴 것")
+        if lm.USE_JOINT_POINTS and any(lm.calib_source(l, j) != "pose_gui" for l in range(6) for j in range(3)):
+            fix.append("임시로 측정점 끄기: HEXAPOD_JOINT_POINTS=0")
+        fix.append("측정해도 같으면 그 서보 혼을 몇 칸 돌려 다시 끼울 것 (서기 자세가 서보 끝에 붙어 있음)")
+        return (f"보폭 {self.stride:.1f}mm — 걸을 수 없음 (서기 자세에서 다리를 {LIFT_MM:.0f}mm 들 여유가 없는 관절: {why})\n"
+                + "\n".join("  → " + f for f in fix))
+
     def max_speed(self):
         """직진 최고 속도 [m/s] (보폭 ÷ 바닥 시간)."""
         return self.stride / self.t_stance / 1000.0

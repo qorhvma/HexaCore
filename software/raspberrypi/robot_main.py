@@ -100,6 +100,12 @@ class RobotNode:
         if hasattr(self.gait, "stand_command"):
             import leg_model
             print(f"[pi] 캘리브레이션 표 {leg_model.TABLE_PATH}", flush=True)
+            if not leg_model.USE_JOINT_POINTS:
+                print("[pi] HEXAPOD_JOINT_POINTS=0 → 측정점 무시, pose_gui 보정만 씀", flush=True)
+            print(f"[pi] 보폭 {self.gait.stride:.1f}mm, 직진 최고 {self.gait.max_speed():.3f} m/s", flush=True)
+            warn = self.gait.walk_warning()
+            if warn:
+                print("[pi] ★ " + warn, flush=True)
             print("[pi] 서기 자세 (펌웨어로 보내는 각도): "
                   + " ".join(f"{l}:[{', '.join(f'{v:.1f}' for v in row)}]" for l, row in enumerate(self.gait.stand_command())),
                   flush=True)
