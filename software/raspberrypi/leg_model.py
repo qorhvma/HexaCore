@@ -135,20 +135,85 @@ def _extended_servo(l, j):
     return tick_to_servo(_motor(l, j), fw_ticks(l, j, EXTENDED_RAW[l][j]))
 
 
-def to_firmware(l, j, true_deg):
-    """실제 관절 각도 → 펌웨어로 보낼 각도 (hexapod_pose_gui.calibrated_joint 와 같은 계산)."""
+# ─── 측정점 (data/calibration/joint_points.json → 표의 joint_points) ───
+# 다리·관절마다 "실제 각도 → 그 자세를 만든 펌웨어 각도" 를 직접 잰 점들. 있으면 pose_gui 보정보다 우선한다.
+# 점 사이는 서보 각도(가변저항 곡선) 공간에서 직선으로 잇고, 범위 밖은 끝 구간을 연장한다.
+#   2점 이상: 측정점만으로.  1점: 그 점 + pose_gui 의 SLIDER_PER_90 기울기.  0점: pose_gui 보정 그대로.
+JOINT_POINTS = [[[] for _ in range(NUM_JOINTS)] for _ in range(NUM_LEGS)]   # [다리][관절] = [(실제, 서보), ...]
+
+
+def raw_to_servo(l, j, raw_deg):
+    """펌웨어 각도 → 실제 서보 각도 (펌웨어 틱 변환 + 가변저항 곡선)."""
+    return tick_to_servo(_motor(l, j), fw_ticks(l, j, raw_deg))
+
+
+def set_joint_points(legs):
+    """측정점을 바꾼다. legs = [ {"hip": {"180": 펌웨어각, ...}, "femur": {...}, "tibia": {...}} × 6 ] 또는 None.
+    관절 범위(JOINT_LIMITS)도 다시 계산한다. 측정점이 실제 각도에 대해 한 방향으로 가지 않으면 ValueError."""
+    global JOINT_POINTS, JOINT_LIMITS
+    pts = [[[] for _ in range(NUM_JOINTS)] for _ in range(NUM_LEGS)]
+    for l, leg in enumerate(legs or []):
+        for j, name in enumerate(JOINT_NAMES):
+            for k, raw in (leg or {}).get(name, {}).items():
+                pts[l][j].append((float(k), raw_to_servo(l, j, float(raw))))
+            pts[l][j].sort()
+            s = [p[1] for p in pts[l][j]]
+            d = [b - a for a, b in zip(s, s[1:])]
+            if d and not (all(x > 0 for x in d) or all(x < 0 for x in d)):
+                raise ValueError(f"다리 {l} {name} 측정점이 한 방향이 아님 (실제 각도가 커질 때 서보가 갔다 왔다 함): "
+                                 f"{[(t, round(v, 1)) for t, v in pts[l][j]]}")
+    JOINT_POINTS = pts
+    if "JOINT_LIMITS" in globals():
+        JOINT_LIMITS = _joint_limits()
+
+
+def calib_source(l, j):
+    n = len(JOINT_POINTS[l][j])
+    return f"측정 {n}점" if n else "pose_gui"
+
+
+def _interp(x, xs, ys):
+    if len(xs) == 2 or x <= xs[1]:
+        i = 0
+    elif x >= xs[-2]:
+        i = len(xs) - 2
+    else:
+        i = max(k for k in range(len(xs) - 1) if xs[k] <= x)
+    return ys[i] + (ys[i + 1] - ys[i]) * (x - xs[i]) / (xs[i + 1] - xs[i])
+
+
+def _true_to_servo(l, j, true_deg):
+    pts = JOINT_POINTS[l][j]
     d = SV[l][j][1]
-    moved = (true_deg - EXTENDED_ANG[j]) * SLIDER_PER_90[l][j] / 90.0
-    servo = _extended_servo(l, j) + d * moved * ANGLE_GAIN
-    return _fw_from_tick(l, j, servo_to_tick(_motor(l, j), servo))
+    if len(pts) >= 2:
+        return _interp(true_deg, [p[0] for p in pts], [p[1] for p in pts])
+    t0, s0 = pts[0] if pts else (EXTENDED_ANG[j], _extended_servo(l, j))
+    return s0 + d * (true_deg - t0) * SLIDER_PER_90[l][j] / 90.0 * ANGLE_GAIN
+
+
+def _servo_to_true(l, j, servo):
+    pts = JOINT_POINTS[l][j]
+    d = SV[l][j][1]
+    if len(pts) >= 2:
+        xs, ys = [p[1] for p in pts], [p[0] for p in pts]
+        if xs[0] > xs[-1]:
+            xs, ys = xs[::-1], ys[::-1]
+        return _interp(servo, xs, ys)
+    t0, s0 = pts[0] if pts else (EXTENDED_ANG[j], _extended_servo(l, j))
+    return t0 + (servo - s0) / (d * ANGLE_GAIN) * 90.0 / SLIDER_PER_90[l][j]
+
+
+def to_firmware(l, j, true_deg):
+    """실제 관절 각도 → 펌웨어로 보낼 각도. 측정점이 없으면 hexapod_pose_gui.calibrated_joint 와 같은 계산."""
+    return _fw_from_tick(l, j, servo_to_tick(_motor(l, j), _true_to_servo(l, j, true_deg)))
 
 
 def from_firmware(l, j, fw_deg):
     """펌웨어 각도 → 실제 관절 각도 (to_firmware 의 역변환)."""
-    d = SV[l][j][1]
-    servo = tick_to_servo(_motor(l, j), fw_ticks(l, j, fw_deg))
-    moved = (servo - _extended_servo(l, j)) / (d * ANGLE_GAIN)
-    return EXTENDED_ANG[j] + moved * 90.0 / SLIDER_PER_90[l][j]
+    return _servo_to_true(l, j, raw_to_servo(l, j, fw_deg))
+
+
+set_joint_points((CAL.get("joint_points") or {}).get("legs"))
 
 
 def pose_to_firmware(pose):

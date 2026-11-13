@@ -9,6 +9,7 @@
     firmware/firmware/firmware.ino          서보별 tCal·dir·채널, JOINT_OFS, 틱 한계, 변환 상수 (ESP32 에 올라가는 값)
     legacy/bluetooth_pc/hexapod_sdk.py      다리 길이, 관절 범위, 좌우 부호, 서기 자세
     legacy/bluetooth_pc/hexapod_pose_gui.py 실제 관절 각도 → 펌웨어 각도 보정 (가변저항 곡선, 일자 자세, 90° 이동량)
+    data/calibration/joint_points.json      관절 측정점 (calibrate_joints.py). 있으면 pose_gui 보정보다 우선
 표에만 있는 값 (원본 없음): 다리 장착 위치·방향 (최종 CAD URDF), femur 축 높이
 """
 
@@ -24,6 +25,7 @@ TABLE = os.path.join(ROOT, "data", "calibration", "calibration.json")
 FIRMWARE = os.path.join(ROOT, "firmware", "firmware", "firmware.ino")
 SDK = os.path.join(ROOT, "legacy", "bluetooth_pc", "hexapod_sdk.py")
 POSE_GUI = os.path.join(ROOT, "legacy", "bluetooth_pc", "hexapod_pose_gui.py")
+JOINT_POINTS = os.path.join(ROOT, "data", "calibration", "joint_points.json")   # calibrate_joints.py 가 쓰는 측정점
 JOINTS = ("hip", "femur", "tibia")
 
 # 원본이 없는 값 (최종 CAD URDF, 2026-11-07). 펌웨어 다리 번호 순서 (0 왼앞 … 5 오른앞)
@@ -153,10 +155,23 @@ def pose_gui_firmware_mismatch(fw, servos, v):
     return out
 
 
+def read_joint_points(path=JOINT_POINTS):
+    """관절 측정점 (없으면 None). legs[다리][관절][실제 각도 문자열] = 펌웨어 각도."""
+    if not os.path.exists(path):
+        return None
+    d = json.load(open(path, encoding="utf-8"))
+    legs = [{j: {k: float(v) for k, v in (leg or {}).get(j, {}).items()} for j in JOINTS} for leg in d.get("legs", [])]
+    if len(legs) != 6:
+        raise ValueError(f"{os.path.basename(path)}: 다리 6개여야 함")
+    return {"_about": "calibrate_joints.py 로 잰 측정점. 있는 관절은 pose_calibration 대신 이 점들로 변환한다.",
+            "updated": d.get("updated"), "legs": legs}
+
+
 def build_table():
     fw, servos = read_firmware()
     kin = read_sdk()
     pose, _ = read_pose_gui()
+    points = read_joint_points()
     kin.update({"coxa_dz_mm": -11.4, "hip_z_mm": 4.0, "mounts": MOUNTS})
     return {
         "_about": ("헥사포드 캘리브레이션 표. 로봇 소프트웨어(software/raspberrypi/leg_model.py)가 읽는다. "
@@ -169,6 +184,7 @@ def build_table():
         "servos": servos,
         "kinematics": kin,
         "pose_calibration": pose,
+        **({"joint_points": points} if points else {}),
     }
 
 
@@ -218,7 +234,8 @@ def main():
         for d in diffs:
             print("  ", d)
         return 1
-    print("calibration.json = firmware.ino + hexapod_sdk.py + hexapod_pose_gui.py (일치)")
+    print("calibration.json = firmware.ino + hexapod_sdk.py + hexapod_pose_gui.py"
+          + (" + joint_points.json" if "joint_points" in fresh else "") + " (일치)")
     return 1 if gui_bad else 0
 
 
