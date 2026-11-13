@@ -31,7 +31,7 @@ from pc_link import PcServer
 from ik_gait import IkTripodGait
 
 
-VERSION = "0.3.0-pi"
+VERSION = "0.4.0-pi"   # 0.4 = IK 보행 + 캘리브레이션 표(data/calibration) 관절 보정
 CONTROL_HZ = 50
 MAPPING_HZ = 5
 DEADMAN_SEC = 0.5
@@ -96,6 +96,13 @@ class RobotNode:
 
     # ───────────── 생명주기 ─────────────
     def start(self):
+        print(f"[pi] 노드 v{VERSION}, 보행 {self.gait_name()}, 코드 {os.path.dirname(os.path.abspath(__file__))}", flush=True)
+        if hasattr(self.gait, "stand_command"):
+            import leg_model
+            print(f"[pi] 캘리브레이션 표 {leg_model.TABLE_PATH}", flush=True)
+            print("[pi] 서기 자세 (펌웨어로 보내는 각도): "
+                  + " ".join(f"{l}:[{', '.join(f'{v:.1f}' for v in row)}]" for l, row in enumerate(self.gait.stand_command())),
+                  flush=True)
         self.fw.connect()
         if not self.args.no_lidar:
             self.lidar.start()
@@ -169,8 +176,12 @@ class RobotNode:
                 self.grid.integrate_scan(pts, self.pose)
 
     # ───────────── PC 링크에서 호출 ─────────────
+    def gait_name(self):
+        return "ik+calib" if hasattr(self.gait, "stand_command") else "sine"
+
     def info(self):
-        return {"robot": "Hyperism-HEXAPODv1", "version": VERSION, "simulated": bool(self.args.sim)}
+        return {"robot": "Hyperism-HEXAPODv1", "version": VERSION, "simulated": bool(self.args.sim),
+                "gait": self.gait_name(), "code": os.path.dirname(os.path.abspath(__file__))}
 
     def telemetry(self):
         with self._lock:
