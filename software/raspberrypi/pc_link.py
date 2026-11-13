@@ -15,7 +15,8 @@ Pi → PC
 PC → Pi
     {"cmd": "auth", "token": "..."}                    HEXAPOD_TOKEN 환경변수를 설정했을 때만 필요
     {"cmd": "walk", "vx": 0.1, "vy": 0, "wz": 0}       m/s, rad/s — 0.5초 안에 다시 안 오면 자동 정지 (데드맨)
-    {"cmd": "stop"} | {"cmd": "stand"} | {"cmd": "power_off"}
+    {"cmd": "stop"} | {"cmd": "stand"} | {"cmd": "power_off"}     stand = 일어서기 (앉은 높이 → 서기 높이로 몸을 듦)
+    {"cmd": "height", "mm": 90} | {"cmd": "height", "delta_mm": 10}  몸 높이 [mm] (바닥 → 몸통 원점), IK 보행만
     {"cmd": "joint", "leg": 0, "joint": 1, "deg": 135}
     {"cmd": "imu_zero"}
     {"cmd": "lidar", "on": true}

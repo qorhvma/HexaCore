@@ -68,7 +68,10 @@ def run(gait, cmds, label):
     dist = [0.0, 0.0]
     yaw = 0.0
     t = 0.0
-    for secs, vx, vy, wz in cmds:
+    for seg in cmds:
+        secs, vx, vy, wz = seg[:4]
+        if len(seg) > 4 and seg[4] is not None:
+            gait.set_height(seg[4])                    # 이 구간에서 몸 높이 목표
         for _ in range(int(round(secs / DT))):
             fw_pose = gait.update(vx, vy, wz, DT)      # 펌웨어로 보내는 값 (캘리브레이션 적용)
             pose = gait.pose_true                      # 실제 관절 각도
@@ -143,7 +146,8 @@ def offline():
     gait = g.IkTripodGait()
     sp = gait.stand_pose[0]
     print(f"서기 자세 (실제) hip {sp[0]:.0f} femur {sp[1]:.0f} tibia {sp[2]:.0f} — {gait.stand_note}")
-    print(f"서기 발 높이 {gait.ground:.1f}mm (몸통 원점 기준), 보폭 {gait.stride:.1f}mm, 직진 최고 {gait.max_speed():.3f} m/s")
+    print(f"몸 높이: 서기 {gait.stand_height:.0f}mm, 앉은 {gait.sit_height:.0f}mm, 조절 범위 "
+          f"{gait.height_range[0]:.0f}~{gait.height_range[1]:.0f}mm | 보폭 {gait.stride:.1f}mm, 직진 최고 {gait.max_speed():.3f} m/s")
     if not lm.USE_JOINT_POINTS:
         print("  (HEXAPOD_JOINT_POINTS=0 → 측정점 무시, pose_gui 보정만)")
     warn = gait.walk_warning()
@@ -164,11 +168,20 @@ def offline():
     rand = [(rng.uniform(0.1, 1.0), rng.uniform(-0.12, 0.12), rng.uniform(-0.08, 0.08), rng.uniform(-0.6, 0.6))
             for _ in range(80)] + [(3, 0, 0, 0)]
     scen.append(("무작위", rand))
+    lo, hi = gait.height_range
+    scen.append(("걸으며 높이", [(3, 0.08, 0, 0.2, min(hi, gait.stand_height + 30)), (3, 0.08, 0, -0.2, max(lo, 60)),
+                               (3, 0, 0, 0, gait.stand_height)]))
+    scen.append(("일어서기", "stand_up"))
     bad = False
     print(f"\n{'시나리오':<12} {'시간':>5} {'이동 x,y [mm]':>16} {'회전':>7} {'안정 여유':>9} {'관절 최고 속도':>12}")
     for label, cmds in scen:
         gait.reset()
+        if cmds == "stand_up":                         # 힘 빠져 다리를 편 채 앉아 있다가 일어서기
+            gait.stand_up(current_true=[[180.0, 180.0, 180.0] for _ in range(lm.NUM_LEGS)])
+            cmds = [(6, 0, 0, 0)]
         errs, s = run(gait, cmds, label)
+        if abs(gait.height - gait.height_target) > 0.5 or gait.settling:
+            errs.append(f"몸 높이가 목표에 안 닿음 ({gait.height:.1f} / {gait.height_target:.1f}mm)")
         far = max(math.dist(gait.feet[l][:2], gait.home[l][:2]) for l in range(lm.NUM_LEGS))
         if gait.active or far > g.SETTLE_TOL:
             errs.append(f"멈춘 뒤 제자리로 안 돌아옴 (발이 최대 {far:.1f}mm 벗어남)")

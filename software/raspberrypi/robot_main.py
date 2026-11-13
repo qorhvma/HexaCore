@@ -105,6 +105,8 @@ class RobotNode:
             sp = self.gait.stand_pose[0]
             print(f"[pi] 서기 자세 (실제 각도) hip {sp[0]:.0f} femur {sp[1]:.0f} tibia {sp[2]:.0f} — {self.gait.stand_note}, "
                   f"몸 높이 {-self.gait.ground:.0f}mm", flush=True)
+            print(f"[pi] 몸 높이: 서기 {self.gait.stand_height:.0f}mm, 앉은 {self.gait.sit_height:.0f}mm, "
+                  f"조절 범위 {self.gait.height_range[0]:.0f}~{self.gait.height_range[1]:.0f}mm", flush=True)
             print(f"[pi] 보폭 {self.gait.stride:.1f}mm, 직진 최고 {self.gait.max_speed():.3f} m/s", flush=True)
             warn = self.gait.walk_warning()
             if warn:
@@ -202,6 +204,7 @@ class RobotNode:
             "pose": {"x": round(self.pose.x, 3), "y": round(self.pose.y, 3),
                      "yaw": round(math.degrees(self.pose.yaw), 1)},
             "cmd_vel": cmd,
+            **({"gait": self.gait.status()} if hasattr(self.gait, "status") else {}),
             "lidar": self.lidar.status(),
             "pi": pi_health(),
         }
@@ -219,6 +222,19 @@ class RobotNode:
         wy = y + band[:, 0] * s + band[:, 1] * c
         return np.round(np.stack([wx, wy], axis=1), 3).tolist()
 
+    def _stand_up(self):
+        """일어서기: IK 보행이면 앉은 높이에서 발을 제자리로 옮긴 뒤 몸을 들어 올린다 (제어 루프가 진행)."""
+        if not hasattr(self.gait, "stand_up"):
+            self._gait_reset()
+            self.fw.stand()
+            return
+        snap = self.fw.snapshot()
+        cur = None
+        if snap.get("powered"):                       # 서보가 켜져 있으면 마지막으로 보낸 자세에서 천천히 출발
+            import leg_model
+            cur = [[leg_model.from_firmware(l, j, snap["joints"][l][j]) for j in range(3)] for l in range(NUM_LEGS)]
+        self.gait.stand_up(cur)
+
     def _gait_reset(self):
         """서기 자세에서 다시 시작 (IK 보행은 발 위치를 기억하므로 자세가 바뀌면 지워야 한다)."""
         if hasattr(self.gait, "reset"):
@@ -228,18 +244,23 @@ class RobotNode:
         cmd = msg.get("cmd")
         if cmd == "walk":
             if self.mode in ("idle", "estop"):
-                self._gait_reset()
+                self._stand_up()
                 self.mode = "stand"
             self.set_cmd_vel(msg.get("vx", 0), msg.get("vy", 0), msg.get("wz", 0))
         elif cmd == "stop":
             self.set_cmd_vel(0, 0, 0)
         elif cmd == "stand":
             self.mode = "stand"
-            self._gait_reset()
-            if hasattr(self.gait, "stand_command"):
-                self.fw.send_pose(self.gait.stand_command())   # IK 보행: 캘리브레이션을 적용한 서기 자세
+            self._stand_up()
+        elif cmd == "height":
+            # {"cmd": "height", "mm": 90} (절대) 또는 {"cmd": "height", "delta_mm": 10} (상대). 몸 높이 = 바닥 → 몸통 원점
+            if not hasattr(self.gait, "set_height"):
+                raise ValueError("이 보행(--gait sine)은 몸 높이 조절이 없음")
+            if "mm" in msg:
+                target = self.gait.set_height(float(msg["mm"]))
             else:
-                self.fw.stand()
+                target = self.gait.change_height(float(msg.get("delta_mm", 0)))
+            return {"height_target": round(target, 1)}
         elif cmd == "power_off":
             self.mode = "idle"
             self.set_cmd_vel(0, 0, 0)
