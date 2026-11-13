@@ -45,6 +45,10 @@ python3 robot_main.py --port /dev/serial0   # GPIO UART 로 ESP32 연결 시
   (서기 명령도 보정된 자세를 보낸다).
   **펌웨어나 hexapod_sdk.py 를 고치면 `python3 data/calibration/check_calibration.py --update` 로 표를 갱신할 것.**
   `gait_check.py` 가 표와 원본이 다르면 실패로 알려 준다.
+- **서기 자세 자동 선택**: 캘리브레이션 때문에 기본 서기 자세(hexapod_sdk `STAND_POSE`)에서 다리를 들 여유가 없으면
+  (보폭 < 60mm), 기본에 가장 가까우면서 걸을 수 있는 자세를 고른다 (femur 를 덜 들고 tibia 를 덜 접는 쪽). 시작 로그에
+  `서기 자세 ... 자동 선택` 으로 나온다. 직접 정하려면 `HEXAPOD_STAND=150,65 python3 robot_main.py ...` (femur,tibia).
+- 측정점을 잠시 끄려면 `HEXAPOD_JOINT_POINTS=0` (pose_gui 보정만 씀).
 - 서기 높이에서 계산한 보폭 74.9mm, 직진 최고 약 0.15 m/s (노드 한계 MAX_VX 0.12 로 다시 잘림).
 - 처음 쓰기 전에 (몸통을 받침에 올리고):
 

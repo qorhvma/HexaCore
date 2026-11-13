@@ -84,7 +84,7 @@ class RobotNode:
         self.mode = "idle"                   # idle | stand | walk | estop
         self.safety = []
         # 기본은 IK 보행 (모터 캘리브레이션·최종 CAD 치수 기반). --gait sine 이면 예전 관절 사인파 보행
-        self.gait = TripodGait() if getattr(args, "gait", "ik") == "sine" else IkTripodGait(STAND_POSE)
+        self.gait = TripodGait() if getattr(args, "gait", "ik") == "sine" else IkTripodGait()
         self._lock = threading.Lock()
         self._stop = threading.Event()
 
@@ -102,6 +102,9 @@ class RobotNode:
             print(f"[pi] 캘리브레이션 표 {leg_model.TABLE_PATH}", flush=True)
             if not leg_model.USE_JOINT_POINTS:
                 print("[pi] HEXAPOD_JOINT_POINTS=0 → 측정점 무시, pose_gui 보정만 씀", flush=True)
+            sp = self.gait.stand_pose[0]
+            print(f"[pi] 서기 자세 (실제 각도) hip {sp[0]:.0f} femur {sp[1]:.0f} tibia {sp[2]:.0f} — {self.gait.stand_note}, "
+                  f"몸 높이 {-self.gait.ground:.0f}mm", flush=True)
             print(f"[pi] 보폭 {self.gait.stride:.1f}mm, 직진 최고 {self.gait.max_speed():.3f} m/s", flush=True)
             warn = self.gait.walk_warning()
             if warn:

@@ -16,6 +16,7 @@
 """
 
 import math
+import os
 
 import leg_model as lm
 
@@ -44,19 +45,75 @@ def _rotz(x, y, a):
     return c * x - s * y, s * x + c * y
 
 
+AUTO_STAND_MIN_STRIDE = 60.0   # 기본 서기 자세의 보폭이 이보다 작으면 다른 서기 자세를 찾는다 [mm]
+
+
+def stand_from_env():
+    """HEXAPOD_STAND="femur,tibia" (또는 "hip,femur,tibia") → 6다리 서기 자세 (실제 관절 각도). 없으면 None."""
+    v = os.environ.get("HEXAPOD_STAND")
+    if not v:
+        return None
+    nums = [float(x) for x in v.replace(" ", "").split(",") if x]
+    if len(nums) == 2:
+        nums = [180.0] + nums
+    if len(nums) != 3:
+        raise ValueError(f"HEXAPOD_STAND={v!r}: 'femur,tibia' 또는 'hip,femur,tibia' 로 줄 것")
+    return [nums[:] for _ in range(lm.NUM_LEGS)]
+
+
+def _stand_candidates(base):
+    """tibia 를 (거의) 수직으로 둔 채 femur 를 덜 드는 서기 자세들. base 에 가까운 순."""
+    hip, fem0, tib0 = base
+    out = []
+    for fem in range(int(fem0), 171, 5):
+        a = 180 - fem
+        for extra in (0, 5, 10, 15):
+            tib = 90 - a + extra
+            out.append([hip, float(fem), float(tib)])
+    out.sort(key=lambda p: abs(p[1] - fem0) + abs(p[2] - tib0))
+    return out
+
+
 class IkTripodGait:
-    def __init__(self, stand_pose=None):
-        self.stand_pose = [row[:] for row in (stand_pose or lm.STAND_POSE)]
-        self.home = [lm.fk(l, self.stand_pose[l]) for l in range(lm.NUM_LEGS)]
-        bad = [l for l in range(lm.NUM_LEGS) if lm.ik(l, self.home[l]) is None]
-        if bad:
-            raise ValueError(f"서기 자세가 허용 범위 밖인 다리: {bad} — leg_model 의 캘리브레이션/한계를 확인할 것")
-        self.ground = sum(h[2] for h in self.home) / lm.NUM_LEGS
+    def __init__(self, stand_pose=None, auto_stand=True):
+        """stand_pose 없으면 HEXAPOD_STAND, 그것도 없으면 leg_model.STAND_POSE (hexapod_sdk).
+        auto_stand: 그 자세에서 캘리브레이션 범위 때문에 걷기 어려우면 (보폭 < AUTO_STAND_MIN_STRIDE)
+        가장 가까우면서 걸을 수 있는 서기 자세를 고른다."""
         self.t_swing = PERIOD * SWING_FRAC
         self.t_stance = PERIOD * (1.0 - SWING_FRAC)
-        self.stride = min(self._capacity(), STRIDE_MAX) * STRIDE_USE
         self.stats = {"ticks": 0, "slowed": 0, "reduced": 0, "held": 0}
+        env = stand_from_env()
+        requested = [row[:] for row in (stand_pose or env or lm.STAND_POSE)]
+        self.stand_note = "HEXAPOD_STAND" if (env and not stand_pose) else "기본"
+        ok = self._setup(requested)
+        if auto_stand and not env and (not ok or self.stride < AUTO_STAND_MIN_STRIDE):
+            first = (requested[0][:], self.stride if ok else 0.0)
+            best = None
+            for cand in _stand_candidates(requested[0]):
+                if self._setup([cand[:] for _ in range(lm.NUM_LEGS)]) and self.stride >= AUTO_STAND_MIN_STRIDE:
+                    best = cand
+                    break
+            if best is None:
+                self._setup(requested)
+            else:
+                self.stand_note = (f"자동 선택 (기본 {first[0][1]:.0f}/{first[0][2]:.0f} 은 보폭 {first[1]:.0f}mm → "
+                                   f"femur {best[1]:.0f}, tibia {best[2]:.0f})")
+        if not self._ok:
+            raise ValueError(f"서기 자세가 허용 범위 밖인 다리: {self._bad} — 캘리브레이션/한계를 확인할 것")
         self.reset()
+
+    def _setup(self, stand):
+        """서기 자세를 정하고 보폭을 계산. 범위 밖 다리가 있으면 False."""
+        self.stand_pose = [row[:] for row in stand]
+        self.home = [lm.fk(l, self.stand_pose[l]) for l in range(lm.NUM_LEGS)]
+        self._bad = [l for l in range(lm.NUM_LEGS) if lm.ik(l, self.home[l]) is None]
+        self._ok = not self._bad
+        if not self._ok:
+            self.stride = 0.0
+            return False
+        self.ground = sum(h[2] for h in self.home) / lm.NUM_LEGS
+        self.stride = min(self._capacity(), STRIDE_MAX) * STRIDE_USE
+        return True
 
     # ───────────── 상태 ─────────────
     def reset(self):
@@ -102,7 +159,7 @@ class IkTripodGait:
         """걷기 어려우면 이유를 글로 (괜찮으면 None)."""
         if self.stride >= min_stride:
             return None
-        tight = lm.stand_margins()
+        tight = lm.stand_margins(stand=self.stand_pose)
         why = ", ".join(f"다리 {l} {n} 범위 끝까지 {m:.0f}° ({src})" for l, n, m, src in tight) or "알 수 없음"
         fix = []
         if any(src.startswith("측정 1") for *_, src in tight):

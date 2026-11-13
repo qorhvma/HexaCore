@@ -218,13 +218,14 @@ USE_JOINT_POINTS = os.environ.get("HEXAPOD_JOINT_POINTS", "1") != "0"
 set_joint_points((CAL.get("joint_points") or {}).get("legs") if USE_JOINT_POINTS else None)
 
 
-def stand_margins(min_deg=15.0):
+def stand_margins(min_deg=15.0, stand=None):
     """서기 자세에서 관절 범위 끝까지 남은 각도가 min_deg 보다 작은 관절 [(다리, 관절 이름, 남은 각도, 보정 출처)]."""
+    stand = stand or STAND_POSE
     out = []
     for l in range(NUM_LEGS):
         for j in range(NUM_JOINTS):
             lo, hi = JOINT_LIMITS[l][j]
-            m = min(STAND_POSE[l][j] - lo, hi - STAND_POSE[l][j])
+            m = min(stand[l][j] - lo, hi - stand[l][j])
             if m < min_deg:
                 out.append((l, JOINT_NAMES[j], m, calib_source(l, j)))
     return out

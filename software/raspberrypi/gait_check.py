@@ -141,6 +141,8 @@ def offline():
         ticks = [round(lm.tick_of(l, j, lm.STAND_POSE[l][j])) for j in range(3)]
         print(f"  다리 {l} {lm.LEG_NAMES[l]:<5} {lims}  |  {fw} 틱 {ticks}")
     gait = g.IkTripodGait()
+    sp = gait.stand_pose[0]
+    print(f"서기 자세 (실제) hip {sp[0]:.0f} femur {sp[1]:.0f} tibia {sp[2]:.0f} — {gait.stand_note}")
     print(f"서기 발 높이 {gait.ground:.1f}mm (몸통 원점 기준), 보폭 {gait.stride:.1f}mm, 직진 최고 {gait.max_speed():.3f} m/s")
     if not lm.USE_JOINT_POINTS:
         print("  (HEXAPOD_JOINT_POINTS=0 → 측정점 무시, pose_gui 보정만)")
@@ -189,7 +191,8 @@ def identify(port):
     fw.connect()
     if fw.simulate:
         sys.exit(f"{port} 에 ESP32 가 없어 시뮬레이션으로 열림 → --port 를 확인할 것")
-    pose = [row[:] for row in lm.STAND_POSE]
+    stand = g.IkTripodGait().stand_pose          # 보행과 같은 서기 자세 (자동 선택 포함)
+    pose = [row[:] for row in stand]
 
     def glide(target, secs=0.8):
         """실제 관절 각도로 부드럽게 옮긴다 (보낼 때 관절 보정 적용)."""
@@ -208,21 +211,21 @@ def identify(port):
         time.sleep(1.5)
         for l in range(lm.NUM_LEGS):
             print(f"\n다리 {l} → '{lm.LEG_NAMES[l]}' 다리여야 함: 1) 앞쪽으로 돌고  2) 위로 들린다")
-            t = [row[:] for row in lm.STAND_POSE]
+            t = [row[:] for row in stand]
             t[l][0] += 15.0                     # hip + = 앞쪽 (가정)
             glide(t)
             time.sleep(0.5)
             t[l][1] -= 25.0                     # femur - = 위로
             glide(t)
             time.sleep(0.8)
-            glide(lm.STAND_POSE)
+            glide(stand)
             ans = input("  맞으면 Enter, 다르면 무엇이 달랐는지 적고 Enter: ").strip()
             if ans:
                 print(f"  기록: 다리 {l}: {ans}")
     except KeyboardInterrupt:
         print("\n중단")
     finally:
-        glide(lm.STAND_POSE, 0.8)
+        glide(stand, 0.8)
         fw.close()
 
 
