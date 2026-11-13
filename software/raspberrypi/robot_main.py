@@ -36,7 +36,9 @@ CONTROL_HZ = 50
 MAPPING_HZ = 5
 DEADMAN_SEC = 0.5
 
-MAX_VX, MAX_VY, MAX_WZ = 0.12, 0.08, 0.6       # m/s, m/s, rad/s
+MAX_VX = float(os.environ.get("HEXAPOD_MAX_VX") or 0.25)   # m/s (보행이 보폭 한계로 다시 줄임)
+MAX_VY = float(os.environ.get("HEXAPOD_MAX_VY") or 0.15)
+MAX_WZ = 0.6                                             # rad/s
 GAIT_HZ = 1.2                                  # 한 걸음 주기
 STEP_LIFT_DEG = 18
 STRIDE_DEG_PER_MPS = 140                       # 속도 → coxa 스윙 진폭

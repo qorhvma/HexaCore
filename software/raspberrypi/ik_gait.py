@@ -26,11 +26,12 @@ import os
 import leg_model as lm
 
 # ───────────── 보행 파라미터 ─────────────
-PERIOD = 0.9            # 한 주기 (두 조가 한 번씩 옮김) [s]
+PERIOD = float(os.environ.get("HEXAPOD_PERIOD") or 0.9)   # 한 주기 [s]. 길게 하면 같은 속도에서 한 걸음이 길어짐
 SWING_FRAC = 0.45       # 주기 중 한 다리가 공중에 있는 비율 (< 0.5)
-LIFT_MM = 30.0          # 드는 높이 [mm]
+LIFT_MM = float(os.environ.get("HEXAPOD_LIFT") or 45.0)   # 다리를 드는 높이 [mm]. 높일수록 보폭은 줄어든다 (몸을 높이면 회복)
+LIFT_RISE = 0.3         # 공중 시간 중 들어 올리는(또 내려놓는) 비율. 그 사이에는 LIFT_MM 을 유지한 채 옮긴다
 STRIDE_USE = 0.8        # 계산한 최대 보폭 중 이만큼만 씀 (착지 오차 여유)
-STRIDE_MAX = 120.0      # 보폭 상한 [mm] (이웃 발끼리 부딪히지 않게)
+STRIDE_MAX = float(os.environ.get("HEXAPOD_STRIDE_MAX") or 160.0)   # 보폭 상한 [mm] (이웃 발 간격 236mm 이상)
 ACCEL = 250.0           # 몸 가속 한계 [mm/s²]
 W_ACCEL = 1.5           # 회전 가속 한계 [rad/s²]
 JOINT_SPEED_MAX = 300.0 # 관절 최고 속도 [도/s] (MG996R 무부하 ≈ 350). 넘는 틱은 시간을 늦춰 계산
@@ -86,10 +87,26 @@ def _stand_candidates(base):
     return out
 
 
+def lift_profile(u):
+    """공중 진행도 u (0~1) → 드는 높이 비율. 빨리 들고 → LIFT_MM 을 유지한 채 옮기고 → 내려놓는다 (사다리꼴).
+    예전 sin² 은 한가운데서만 최고 높이라 서보가 따라가다 다 못 들고 내려왔다."""
+    if u < LIFT_RISE:
+        return _smoothstep(u / LIFT_RISE)
+    if u > 1.0 - LIFT_RISE:
+        return _smoothstep((1.0 - u) / LIFT_RISE)
+    return 1.0
+
+
+def move_profile(u):
+    """공중 진행도 u → 수평으로 옮긴 비율. 거의 다 든 뒤 시작해 내리기 전에 끝낸다."""
+    a = LIFT_RISE * 0.8
+    return _smoothstep((u - a) / (1.0 - 2.0 * a))
+
+
 def _capacity(home):
-    """모든 다리가 원래 자리 ± 반 걸음까지 (어느 방향이든) 닿고, 옮기는 중간에 LIFT_MM 을 들 수 있는 보폭 [mm]."""
+    """모든 다리가 원래 자리 ± 반 걸음까지 (어느 방향이든) 닿고, 그 사이를 LIFT_MM 든 채로 옮길 수 있는 보폭 [mm]."""
     dirs = [(math.cos(k * math.pi / 6), math.sin(k * math.pi / 6)) for k in range(12)]
-    checks = ((0.5, 0.0), (0.25, LIFT_MM), (0.0, LIFT_MM))
+    checks = ((0.5, 0.0), (0.5, LIFT_MM), (0.25, LIFT_MM), (0.0, LIFT_MM))
 
     def ok(S):
         for l, h in enumerate(home):
@@ -338,11 +355,10 @@ class IkTripodGait:
                 continue
             u[l] = min(1.0, u[l] + dt / self.t_swing)
             tgt[l] = self._land_target(l, v, w)
-            sh = _smoothstep((u[l] - 0.12) / 0.76)               # 수평은 들고 난 뒤 시작, 내리기 전에 끝
-            bump = math.sin(math.pi * u[l]) ** 2                # 뜰 때·닿을 때 수직 속도 0
+            sh = move_profile(u[l])                             # 수평은 다 든 뒤 시작, 내리기 전에 끝
             x = p0[l][0] + (tgt[l][0] - p0[l][0]) * sh
             y = p0[l][1] + (tgt[l][1] - p0[l][1]) * sh
-            z = p0[l][2] + (ground - p0[l][2]) * _smoothstep(u[l]) + LIFT_MM * bump
+            z = p0[l][2] + (ground - p0[l][2]) * _smoothstep(u[l]) + LIFT_MM * lift_profile(u[l])
             feet[l] = [x, y, z]
             if u[l] >= 1.0:
                 leg[l] = ST

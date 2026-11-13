@@ -38,7 +38,11 @@ HIP, FEMUR, TIBIA = 0, 1, 2
 STAND_POSE = [[180.0, 135.0, 45.0] for _ in range(NUM_LEGS)]
 
 HB_TIMEOUT = 1.5        # 이 시간 동안 아무 줄도 안 오면 끊김
-KEEPALIVE_HZ = 20       # 마지막 자세를 이 주기로 다시 보냄 (펌웨어 FAILSAFE 대비)
+KEEPALIVE_IDLE_SEC = 0.3   # 이만큼 아무것도 안 보냈으면 마지막 자세를 다시 보냄 (펌웨어 FAILSAFE 2초 대비)
+DEADBAND_DEG = 0.3         # 마지막으로 보낸 값과 이만큼 다를 때만 그 관절을 보냄 (서보 분해능 ≈ 0.5°)
+FULL_REFRESH_SEC = 0.5     # 이 간격으로는 18관절을 전부 보냄 (ESP32 가 재부팅돼도 따라오게)
+# 115200 baud ≈ 11.25 KB/s. 예전처럼 50Hz × 18관절 + keepalive 20Hz 를 다 보내면 약 14 KB/s 라 넘쳐서
+# 명령이 0.3초 넘게 밀리고 제어 루프가 쓰기에서 막혔다. 바뀐 관절만 묶어 보내면 걸을 때 약 7 KB/s.
 LOG_MAXLEN = 300
 
 ENV_ALARM_BITS = {1: "high_temp", 2: "smoke", 4: "flame", 8: "sensor_fault"}
@@ -87,6 +91,9 @@ class FirmwareLink:
         self._stop = threading.Event()
         self._threads = []
         self._listeners = []          # 펌웨어 로그 줄 콜백 (PC 로 전달용)
+        self._sent = [[None] * NUM_JOINTS for _ in range(NUM_LEGS)]   # 마지막으로 보낸 각도 (None = 모름)
+        self._last_tx = 0.0           # 마지막으로 무언가 보낸 시각 (monotonic)
+        self._last_full = 0.0         # 마지막으로 18관절을 다 보낸 시각
 
     # ───────────── 연결 ─────────────
     def connect(self):
@@ -129,6 +136,7 @@ class FirmwareLink:
 
     # ───────────── 명령 ─────────────
     def _write(self, s: str):
+        self._last_tx = time.monotonic()
         if self.simulate:
             return
         with self._tx_lock:
@@ -141,19 +149,37 @@ class FirmwareLink:
         with self._lock:
             self.tel.joints[leg][joint] = deg
             self.tel.powered = True
+            self._sent[leg][joint] = deg
         self._write(f"<{leg},{joint},{deg:.1f}>")
 
-    def send_pose(self, pose):
-        for l in range(NUM_LEGS):
-            for j in range(NUM_JOINTS):
-                self.send_joint(l, j, pose[l][j])
+    def send_pose(self, pose, full=False):
+        """18관절 자세. 마지막으로 보낸 값과 DEADBAND_DEG 이상 다른 관절만 한 번에 묶어 보낸다
+        (FULL_REFRESH_SEC 마다, 또는 full=True 면 전부)."""
+        now = time.monotonic()
+        full = full or now - self._last_full >= FULL_REFRESH_SEC
+        parts = []
+        with self._lock:
+            for l in range(NUM_LEGS):
+                for j in range(NUM_JOINTS):
+                    deg = max(0.0, min(359.9, float(pose[l][j])))
+                    self.tel.joints[l][j] = deg
+                    prev = self._sent[l][j]
+                    if full or prev is None or abs(deg - prev) >= DEADBAND_DEG:
+                        parts.append(f"<{l},{j},{deg:.1f}>")
+                        self._sent[l][j] = deg
+            self.tel.powered = True
+        if full:
+            self._last_full = now
+        if parts:
+            self._write("".join(parts))
 
     def stand(self):
-        self.send_pose(STAND_POSE)
+        self.send_pose(STAND_POSE, full=True)
 
     def power_off(self):
         with self._lock:
             self.tel.powered = False
+            self._sent = [[None] * NUM_JOINTS for _ in range(NUM_LEGS)]   # 다시 켤 때 전부 보내게
         self._write("o")
 
     def imu_stream(self, on=True):
@@ -243,16 +269,13 @@ class FirmwareLink:
             self._log(f"[pi] 파싱 실패: {line}")
 
     def _keepalive_loop(self):
-        period = 1.0 / KEEPALIVE_HZ
-        while not self._stop.wait(period):
+        """제어 루프가 한동안 아무것도 안 보냈을 때만 마지막 자세를 다시 보낸다 (보내는 중에는 끼어들지 않음)."""
+        while not self._stop.wait(0.1):
             with self._lock:
                 powered = self.tel.powered
                 pose = [row[:] for row in self.tel.joints]
-            if powered and not self.simulate:
-                with self._tx_lock:
-                    self.ser.write("".join(
-                        f"<{l},{j},{pose[l][j]:.1f}>" for l in range(NUM_LEGS) for j in range(NUM_JOINTS)
-                    ).encode("ascii"))
+            if powered and time.monotonic() - self._last_tx >= KEEPALIVE_IDLE_SEC:
+                self.send_pose(pose, full=True)
 
     # ───────────── 시뮬레이션 ─────────────
     def _sim_loop(self):
