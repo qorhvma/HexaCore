@@ -33,7 +33,9 @@ command -v pinctrl >/dev/null || { echo "pinctrl 이 없음 (Raspberry Pi OS 의
 PINCTRL=(pinctrl)
 if [ "$(id -u)" -ne 0 ]; then
   PINCTRL=(sudo pinctrl)               # 이 파이는 pinctrl 에 root 가 필요하다 ("Must be root")
-  sudo -v                              # 비밀번호를 물으면 여기서 한 번만
+  # 비밀번호를 물으면 여기서 한 번만. NOPASSWD 계정은 묻지 않고 넘어간다
+  # (sudo -v 는 비밀번호가 필요한 규칙이 하나라도 있으면 NOPASSWD 여도 묻는다 → 먼저 -n 으로 확인)
+  sudo -n true 2>/dev/null || sudo -v
 fi
 
 # arduino-cli: PATH → ~/.local/bin → ~/bin → Arduino IDE 2 안에 들어 있는 것
