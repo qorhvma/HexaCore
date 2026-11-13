@@ -73,6 +73,9 @@ EXTENDED_ANG = [180, 180, 180]
 # 그 자세를 만드는, 펌웨어로 그대로 보낸 관절 각도. 보정 후엔 이 자세가 EXTENDED_ANG 로 표시된다
 EXTENDED_RAW = [[180, 197, 197], [166, 185, 209], [187, 173, 210],
                 [180, 179, 173], [195, 187, 185], [180, 187, 185.09]]
+# 관절을 EXTENDED_ANG 에서 실제로 90도 움직이는 데 필요했던 슬라이더 이동량 (hip, femur, tibia)
+SLIDER_PER_90 = [[89, 100, 101], [93, 100, 90], [93, 100, 90],
+                 [98, 100, 90], [95, 97, 90], [80, 90, 101]]
 
 
 def servo_to_tick(motor, servo_deg):
@@ -101,7 +104,7 @@ def tick_to_servo(motor, tick):
 
 
 def calibrated_joint(l, j, joint_deg):
-    """관절 각도 → 펌웨어로 보낼 각도. EXTENDED_ANG 에서 EXTENDED_RAW 가 나가고, 그 차이만큼 캘리브레이션대로 움직인다."""
+    """관절 각도 → 펌웨어로 보낼 각도. EXTENDED_ANG 에서 EXTENDED_RAW 가 나가고, 그 차이는 SLIDER_PER_90 비율로 움직인다."""
     motor = l * 3 + 2 - j
     d = FW_DIR[l][j]
     t_cal = FW_TCAL[l][j]
@@ -109,7 +112,8 @@ def calibrated_joint(l, j, joint_deg):
     raw = EXTENDED_RAW[l][j]
     fw_servo = 90 + d * (raw + FW_OFS[l][j] - REF_ANG[j]) * ANGLE_GAIN
     extended_tick = t_cal + (fw_servo - CAL_ANG[j]) * TICKS_PER_DEG * sign
-    servo = tick_to_servo(motor, extended_tick) + d * (joint_deg - EXTENDED_ANG[j]) * ANGLE_GAIN
+    moved = (joint_deg - EXTENDED_ANG[j]) * SLIDER_PER_90[l][j] / 90
+    servo = tick_to_servo(motor, extended_tick) + d * moved * ANGLE_GAIN
     tick = servo_to_tick(motor, servo)
     fw_servo = CAL_ANG[j] + (tick - t_cal) / (TICKS_PER_DEG * sign)
     return REF_ANG[j] - FW_OFS[l][j] + d * (fw_servo - 90) / ANGLE_GAIN

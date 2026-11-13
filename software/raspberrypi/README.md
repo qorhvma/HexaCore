@@ -10,7 +10,7 @@
 |---|---|
 | `robot_main.py` | 메인 노드: 보행(tripod) 50Hz, 지도 갱신 5Hz, 안전 정지, WebSocket 서버 실행 |
 | `ik_gait.py` | IK 삼각 보행 (기본). 발끝 궤적 → 역기구학, 캘리브레이션 범위·관절 속도·보폭 한계 안에서만 |
-| `leg_model.py` | 모터 캘리브레이션(펌웨어 `SV`/`JOINT_OFS`/틱 한계) + 최종 CAD 치수 → 관절 범위, FK/IK |
+| `leg_model.py` | 캘리브레이션 표 `data/calibration/calibration.json` 을 읽어 관절 범위·FK/IK |
 | `gait_check.py` | 보행 점검: 로봇 없이 시뮬레이션 검사, `--identify` 로 실물 다리 번호·방향 확인 |
 | `firmware_link.py` | ESP32 펌웨어 제어: `<다리,관절,각도>` 전송, `#hb/#ft/#imu/#env` 파싱 |
 | `pc_link.py` | Pi ↔ PC 통신: WebSocket + JSON (텔레메트리 10Hz, 스캔 5Hz, 지도 1Hz) |
@@ -39,9 +39,13 @@ python3 robot_main.py --port /dev/serial0   # GPIO UART 로 ESP32 연결 시
 
 기본은 IK 보행(`ik_gait.py`)이다. 예전 관절 사인파 보행은 `python3 robot_main.py --gait sine`.
 
-- 관절 범위는 `leg_model.py` 의 캘리브레이션 값(= `firmware/firmware/firmware.ino` 의 `SV`, `JOINT_OFS`, `TICK_HARD_MIN/MAX`)에서
-  계산한다. **펌웨어 캘리브레이션을 바꾸면 `leg_model.py` 도 같이 고칠 것.**
-- 서기 높이에서 계산한 보폭 49.7mm, 직진 최고 약 0.10 m/s (tibia 최소 각도가 보폭을 막는다).
+- 캘리브레이션 값은 전부 표 하나 [`data/calibration/calibration.json`](../../data/calibration/README.md) 에서 읽는다
+  (펌웨어 `SV`·`JOINT_OFS`·틱 한계, `hexapod_sdk.py` 의 다리 길이·관절 범위·부호·서기 자세, CAD 다리 위치,
+  `hexapod_pose_gui.py` 의 관절 보정). 보행은 실제 관절 각도로 계산하고, 보낼 때 관절 보정을 적용한다
+  (서기 명령도 보정된 자세를 보낸다).
+  **펌웨어나 hexapod_sdk.py 를 고치면 `python3 data/calibration/check_calibration.py --update` 로 표를 갱신할 것.**
+  `gait_check.py` 가 표와 원본이 다르면 실패로 알려 준다.
+- 서기 높이에서 계산한 보폭 74.9mm, 직진 최고 약 0.15 m/s (노드 한계 MAX_VX 0.12 로 다시 잘림).
 - 처음 쓰기 전에 (몸통을 받침에 올리고):
 
 ```bash

@@ -1,0 +1,557 @@
+{
+  "_about": "헥사포드 캘리브레이션 표. 로봇 소프트웨어(software/raspberrypi/leg_model.py)가 읽는다. firmware 와 servos 는 firmware/firmware/firmware.ino, kinematics 의 길이·범위·부호·서기 자세는 legacy/bluetooth_pc/hexapod_sdk.py 에서 check_calibration.py --update 로 가져온다. kinematics.mounts / coxa_dz_mm / hip_z_mm 는 최종 CAD URDF(2026-11-07) 값. pose_calibration 은 legacy/bluetooth_pc/hexapod_pose_gui.py 의 관절 보정 (실제 각도 → 펌웨어 각도).",
+  "units": {
+    "angle": "펌웨어 관절 각도 [도] (180 = 다리를 쭉 편 상태)",
+    "length": "mm",
+    "tick": "PCA9685 12비트 틱"
+  },
+  "firmware": {
+    "tick_hard_min": 82,
+    "tick_hard_max": 488,
+    "ref_ang_deg": [
+      180.0,
+      180.0,
+      120.0
+    ],
+    "cal_ang_deg": [
+      40.0,
+      65.0,
+      30.0
+    ],
+    "angle_gain": 0.8,
+    "ticks_per_deg": 2.2726528942524036,
+    "tick_90_nominal": 307,
+    "servo_freq_hz": 50
+  },
+  "servos": [
+    {
+      "leg": 0,
+      "joint": "hip",
+      "driver": "0x41",
+      "channel": 2,
+      "name": "tfh1-3",
+      "t_cal": 177,
+      "dir": 1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 0,
+      "joint": "femur",
+      "driver": "0x41",
+      "channel": 1,
+      "name": "tfh1-2",
+      "t_cal": 234,
+      "dir": 1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 0,
+      "joint": "tibia",
+      "driver": "0x41",
+      "channel": 0,
+      "name": "tfh1-1",
+      "t_cal": 184,
+      "dir": 1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 1,
+      "joint": "hip",
+      "driver": "0x41",
+      "channel": 5,
+      "name": "tfh2-3",
+      "t_cal": 184,
+      "dir": 1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 1,
+      "joint": "femur",
+      "driver": "0x41",
+      "channel": 4,
+      "name": "tfh2-2",
+      "t_cal": 233,
+      "dir": 1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 1,
+      "joint": "tibia",
+      "driver": "0x41",
+      "channel": 3,
+      "name": "tfh2-1",
+      "t_cal": 170,
+      "dir": 1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 2,
+      "joint": "hip",
+      "driver": "0x41",
+      "channel": 8,
+      "name": "tfh3-3",
+      "t_cal": 182,
+      "dir": 1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 2,
+      "joint": "femur",
+      "driver": "0x41",
+      "channel": 7,
+      "name": "tfh3-2",
+      "t_cal": 251,
+      "dir": 1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 2,
+      "joint": "tibia",
+      "driver": "0x41",
+      "channel": 6,
+      "name": "tfh3-1",
+      "t_cal": 171,
+      "dir": 1,
+      "joint_ofs_deg": -10.0
+    },
+    {
+      "leg": 3,
+      "joint": "hip",
+      "driver": "0x41",
+      "channel": 11,
+      "name": "hft4-3",
+      "t_cal": 191,
+      "dir": -1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 3,
+      "joint": "femur",
+      "driver": "0x41",
+      "channel": 10,
+      "name": "hft4-2",
+      "t_cal": 237,
+      "dir": 1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 3,
+      "joint": "tibia",
+      "driver": "0x41",
+      "channel": 9,
+      "name": "hft4-1",
+      "t_cal": 183,
+      "dir": 1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 4,
+      "joint": "hip",
+      "driver": "0x41",
+      "channel": 14,
+      "name": "hft5-3",
+      "t_cal": 193,
+      "dir": -1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 4,
+      "joint": "femur",
+      "driver": "0x41",
+      "channel": 13,
+      "name": "hft5-2",
+      "t_cal": 227,
+      "dir": 1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 4,
+      "joint": "tibia",
+      "driver": "0x41",
+      "channel": 12,
+      "name": "hft5-1",
+      "t_cal": 166,
+      "dir": 1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 5,
+      "joint": "hip",
+      "driver": "0x40",
+      "channel": 2,
+      "name": "hft6-3",
+      "t_cal": 195,
+      "dir": -1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 5,
+      "joint": "femur",
+      "driver": "0x40",
+      "channel": 1,
+      "name": "hft6-2",
+      "t_cal": 229,
+      "dir": 1,
+      "joint_ofs_deg": 0.0
+    },
+    {
+      "leg": 5,
+      "joint": "tibia",
+      "driver": "0x40",
+      "channel": 0,
+      "name": "hft6-1",
+      "t_cal": 179,
+      "dir": 1,
+      "joint_ofs_deg": 0.0
+    }
+  ],
+  "kinematics": {
+    "coxa_len_mm": 42.4,
+    "femur_len_mm": 100.02,
+    "tibia_len_mm": 137.5,
+    "hip_sign": [
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1
+    ],
+    "stand_pose_deg": [
+      [
+        180.0,
+        135.0,
+        45.0
+      ],
+      [
+        180.0,
+        135.0,
+        45.0
+      ],
+      [
+        180.0,
+        135.0,
+        45.0
+      ],
+      [
+        180.0,
+        135.0,
+        45.0
+      ],
+      [
+        180.0,
+        135.0,
+        45.0
+      ],
+      [
+        180.0,
+        135.0,
+        45.0
+      ]
+    ],
+    "joint_limits_deg": [
+      [
+        [
+          90.0,
+          270.0
+        ],
+        [
+          62.0,
+          270.0
+        ],
+        [
+          23.0,
+          180.0
+        ]
+      ],
+      [
+        [
+          90.0,
+          270.0
+        ],
+        [
+          62.0,
+          270.0
+        ],
+        [
+          23.0,
+          180.0
+        ]
+      ],
+      [
+        [
+          90.0,
+          270.0
+        ],
+        [
+          62.0,
+          270.0
+        ],
+        [
+          23.0,
+          180.0
+        ]
+      ],
+      [
+        [
+          90.0,
+          270.0
+        ],
+        [
+          62.0,
+          270.0
+        ],
+        [
+          23.0,
+          180.0
+        ]
+      ],
+      [
+        [
+          90.0,
+          270.0
+        ],
+        [
+          62.0,
+          270.0
+        ],
+        [
+          23.0,
+          180.0
+        ]
+      ],
+      [
+        [
+          90.0,
+          270.0
+        ],
+        [
+          62.0,
+          270.0
+        ],
+        [
+          23.0,
+          180.0
+        ]
+      ]
+    ],
+    "coxa_dz_mm": -11.4,
+    "hip_z_mm": 4.0,
+    "mounts": [
+      {
+        "name": "왼앞",
+        "urdf": "L3",
+        "x": 90.9,
+        "y": 54.7,
+        "heading_deg": 35.0
+      },
+      {
+        "name": "왼가운데",
+        "urdf": "L2",
+        "x": 0.0,
+        "y": 99.0,
+        "heading_deg": 90.0
+      },
+      {
+        "name": "왼뒤",
+        "urdf": "L1",
+        "x": -90.9,
+        "y": 54.8,
+        "heading_deg": 145.2
+      },
+      {
+        "name": "오른뒤",
+        "urdf": "L6",
+        "x": -90.9,
+        "y": -54.7,
+        "heading_deg": -144.0
+      },
+      {
+        "name": "오른가운데",
+        "urdf": "L5",
+        "x": 0.0,
+        "y": -99.0,
+        "heading_deg": -90.0
+      },
+      {
+        "name": "오른앞",
+        "urdf": "L4",
+        "x": 90.9,
+        "y": -54.7,
+        "heading_deg": -34.8
+      }
+    ]
+  },
+  "pose_calibration": {
+    "_about": "hexapod_pose_gui.calibrated_joint 와 같은 변환. 실제 관절 각도(180 = 다리를 수평 일자로 편 자세) → 펌웨어로 보낼 각도. 모터 번호 = 다리×3 + 채널 (채널 0 tibia, 1 femur, 2 hip).",
+    "calib_tick": [
+      70,
+      285,
+      500
+    ],
+    "calib_pot": [
+      [
+        444,
+        2246,
+        4088
+      ],
+      [
+        426,
+        2227,
+        4058
+      ],
+      [
+        466,
+        2161,
+        3789
+      ],
+      [
+        464,
+        2353,
+        4080
+      ],
+      [
+        365,
+        2187,
+        3937
+      ],
+      [
+        263,
+        1917,
+        3608
+      ],
+      [
+        663,
+        2362,
+        3935
+      ],
+      [
+        357,
+        2186,
+        3972
+      ],
+      [
+        555,
+        2236,
+        3854
+      ],
+      [
+        339,
+        2020,
+        3666
+      ],
+      [
+        356,
+        2199,
+        3979
+      ],
+      [
+        510,
+        2209,
+        3852
+      ],
+      [
+        367,
+        2223,
+        4006
+      ],
+      [
+        275,
+        2098,
+        3862
+      ],
+      [
+        332,
+        2008,
+        3680
+      ],
+      [
+        202,
+        1945,
+        3763
+      ],
+      [
+        956,
+        2879,
+        3919
+      ],
+      [
+        533,
+        2271,
+        3836
+      ]
+    ],
+    "calib_straight_motors": [
+      17
+    ],
+    "extended_ang_deg": [
+      180.0,
+      180.0,
+      180.0
+    ],
+    "extended_raw_deg": [
+      [
+        180.0,
+        197.0,
+        197.0
+      ],
+      [
+        166.0,
+        185.0,
+        209.0
+      ],
+      [
+        187.0,
+        173.0,
+        210.0
+      ],
+      [
+        180.0,
+        179.0,
+        173.0
+      ],
+      [
+        195.0,
+        187.0,
+        185.0
+      ],
+      [
+        180.0,
+        187.0,
+        185.09
+      ]
+    ],
+    "slider_per_90": [
+      [
+        89.0,
+        100.0,
+        101.0
+      ],
+      [
+        93.0,
+        100.0,
+        90.0
+      ],
+      [
+        93.0,
+        100.0,
+        90.0
+      ],
+      [
+        98.0,
+        100.0,
+        90.0
+      ],
+      [
+        95.0,
+        97.0,
+        90.0
+      ],
+      [
+        80.0,
+        90.0,
+        101.0
+      ]
+    ]
+  }
+}

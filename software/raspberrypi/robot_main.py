@@ -216,7 +216,10 @@ class RobotNode:
         elif cmd == "stand":
             self.mode = "stand"
             self._gait_reset()
-            self.fw.stand()
+            if hasattr(self.gait, "stand_command"):
+                self.fw.send_pose(self.gait.stand_command())   # IK 보행: 캘리브레이션을 적용한 서기 자세
+            else:
+                self.fw.stand()
         elif cmd == "power_off":
             self.mode = "idle"
             self.set_cmd_vel(0, 0, 0)

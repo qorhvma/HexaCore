@@ -3,7 +3,8 @@
 
 예전 TripodGait 는 관절 각도에 사인파를 얹어서 다리 길이·서보 범위를 몰랐다. 이 보행은
   - 발끝 궤적을 몸 좌표 [mm]로 만들고 leg_model.ik 로 관절을 푼다 (최종 CAD 치수)
-  - 관절은 모터 캘리브레이션에서 계산한 허용 범위(leg_model.JOINT_LIMITS) 밖으로 절대 안 보낸다
+  - 실제 관절 각도로 계산하고, 보낼 때 관절 보정(hexapod_pose_gui 와 같은 calibrated_joint)을 적용한다
+  - 관절은 허용 범위(leg_model.JOINT_LIMITS = SDK 범위 ∩ 펌웨어 틱 한계) 밖으로 절대 안 보낸다
   - 보폭은 서기 높이에서 모든 다리가 닿는 만큼까지만 (시작할 때 계산), 넘으면 속도를 줄인다
 
 걷는 방식
@@ -69,7 +70,7 @@ class IkTripodGait:
         self.active = False
         self.v = [0.0, 0.0]       # 몸 속도 [mm/s]
         self.w = 0.0              # [rad/s]
-        self.pose = [row[:] for row in self.stand_pose]
+        self.pose_true = [row[:] for row in self.stand_pose]   # 마지막으로 낸 자세 (실제 관절 각도)
 
     # ───────────── 보폭 한계 ─────────────
     def _capacity(self):
@@ -92,6 +93,10 @@ class IkTripodGait:
             mid = (lo + hi) / 2
             lo, hi = (mid, hi) if ok(mid) else (lo, mid)
         return lo
+
+    def stand_command(self):
+        """서기 자세를 펌웨어로 보낼 각도 (캘리브레이션 적용). firmware_link.stand() 대신 이걸 보낸다."""
+        return lm.pose_to_firmware(self.stand_pose)
 
     def max_speed(self):
         """직진 최고 속도 [m/s] (보폭 ÷ 바닥 시간)."""
@@ -189,7 +194,8 @@ class IkTripodGait:
 
     # ───────────── 매 제어 틱 ─────────────
     def update(self, vx, vy, wz, dt):
-        """명령 (m/s, m/s, rad/s) → 18관절 [도] (다리 6 × [hip, femur, tibia])."""
+        """명령 (m/s, m/s, rad/s) → 펌웨어로 보낼 18관절 [도] (다리 6 × [hip, femur, tibia]).
+        계산은 실제 관절 각도로 하고 (self.pose_true), 돌려줄 때 캘리브레이션(leg_model.to_firmware)을 적용한다."""
         self.stats["ticks"] += 1
         dt = max(0.0, min(dt, 0.1))
         cmd_v = [vx * 1000.0, vy * 1000.0]
@@ -232,12 +238,12 @@ class IkTripodGait:
             if found is None:
                 break
             chosen = found
-            jump = max(abs(found[1][l][i] - self.pose[l][i]) for l in range(lm.NUM_LEGS) for i in range(3))
+            jump = max(abs(found[1][l][i] - self.pose_true[l][i]) for l in range(lm.NUM_LEGS) for i in range(3))
             if jump <= step_max:
                 break
         if chosen is None:                                       # 어떤 경우도 못 풂 → 지금 자세 유지
             self.stats["held"] += 1
-            return [row[:] for row in self.pose]
+            return lm.pose_to_firmware(self.pose_true)
         (self.feet, self.leg, self.u, self.p0, self.tgt, self.phase), joints, mk, used_scale = chosen
         if used_scale < 1.0:
             self.stats["slowed"] += 1
@@ -249,9 +255,9 @@ class IkTripodGait:
         for l in range(lm.NUM_LEGS):
             row = []
             for i in range(3):
-                d = joints[l][i] - self.pose[l][i]
+                d = joints[l][i] - self.pose_true[l][i]
                 d = max(-step_max, min(step_max, d))
-                row.append(self.pose[l][i] + d)
+                row.append(self.pose_true[l][i] + d)
             out.append(row)
-        self.pose = out
-        return [row[:] for row in out]
+        self.pose_true = out
+        return lm.pose_to_firmware(out)

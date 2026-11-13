@@ -36,8 +36,8 @@ Adafruit_PWMServoDriver pwmU1(0x41);
 Adafruit_PWMServoDriver pwmU2(0x40);
 
 #define SERVO_FREQ 50
-const uint16_t TICK_HARD_MIN = 70;    // ≈340us (모터 캘리브레이션 측정 범위)
-const uint16_t TICK_HARD_MAX = 500;   // ≈2440us
+const uint16_t TICK_HARD_MIN = 82;    // ≈400us, 서보 5° (0~180° = 틱 70~500 측정 기준)
+const uint16_t TICK_HARD_MAX = 488;   // ≈2380us, 서보 175°
 enum { HIP = 0, FEMUR = 1, TIBIA = 2 };
 
 const char* BT_NAME = "Hyperism-HEXAPODv1";      // 컴퓨터에서 이 이름으로 페어링

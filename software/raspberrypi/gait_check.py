@@ -8,7 +8,7 @@ IK 보행 점검
         #   다르면 leg_model.LAYOUT (위치·순서) / hip 부호를 고친다.
 
 로봇 없이 확인하는 것 (하나라도 어기면 종료 코드 1)
-    - 모든 관절이 캘리브레이션에서 계산한 허용 범위 안
+    - 모든 관절(실제 각도)이 허용 범위 안, 펌웨어로 보내는 각도(관절 보정 적용)의 틱이 펌웨어 한계 안
     - 한 틱(20ms)에 관절이 JOINT_SPEED_MAX 이상 안 돎
     - 바닥에 있는 다리는 바닥 높이 그대로 (미끄러지지 않게 발끝이 몸 기준으로만 움직임)
     - 무게중심(몸 중심)이 바닥 다리들이 만드는 다각형 안 (정적 안정 여유 [mm])
@@ -64,13 +64,14 @@ def stab_margin(pts):
 def run(gait, cmds, label):
     """cmds = [(초, vx, vy, wz), ...]. 위반 목록과 요약을 돌려준다."""
     errs, worst_margin, max_jump = [], 1e9, 0.0
-    prev = [row[:] for row in gait.pose]
+    prev = [row[:] for row in gait.pose_true]
     dist = [0.0, 0.0]
     yaw = 0.0
     t = 0.0
     for secs, vx, vy, wz in cmds:
         for _ in range(int(round(secs / DT))):
-            pose = gait.update(vx, vy, wz, DT)
+            fw_pose = gait.update(vx, vy, wz, DT)      # 펌웨어로 보내는 값 (캘리브레이션 적용)
+            pose = gait.pose_true                      # 실제 관절 각도
             t += DT
             # 몸 이동 적분 (몸 좌표 → 바닥 좌표)
             c, s = math.cos(yaw), math.sin(yaw)
@@ -80,6 +81,10 @@ def run(gait, cmds, label):
             for l in range(lm.NUM_LEGS):
                 if not lm.in_limits(l, pose[l]):
                     errs.append(f"{t:.2f}s 다리 {l} 범위 밖 {[round(v, 1) for v in pose[l]]}")
+                for i in range(3):
+                    tick = lm.fw_ticks(l, i, fw_pose[l][i])
+                    if not lm.TICK_HARD_MIN - 1e-6 <= tick <= lm.TICK_HARD_MAX + 1e-6:
+                        errs.append(f"{t:.2f}s 다리 {l} 관절 {i} 틱 {tick:.0f} 이 한계 밖 (펌웨어가 잘라 버림)")
                 for i in range(3):
                     jump = abs(pose[l][i] - prev[l][i])
                     max_jump = max(max_jump, jump / DT)
@@ -98,13 +103,43 @@ def run(gait, cmds, label):
                   "margin": worst_margin, "max_joint_speed": max_jump}
 
 
+def _table_matches_sources():
+    """표가 펌웨어·SDK 원본과 같은지 (data/calibration/check_calibration.py). 원본 파일이 없으면 건너뜀."""
+    import importlib.util
+    import os
+    path = os.path.join(os.path.dirname(lm.TABLE_PATH), "check_calibration.py")
+    if not os.path.exists(path):
+        print("  (check_calibration.py 없음 → 원본 대조 건너뜀)")
+        return True
+    spec = importlib.util.spec_from_file_location("_check_calibration", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    try:
+        diffs = mod._diff(lm.CAL, mod.build_table())
+    except (OSError, ValueError) as e:
+        print(f"  원본을 못 읽어 대조 건너뜀: {e}")
+        return True
+    if diffs:
+        print("  ✗ 표가 원본(firmware.ino / hexapod_sdk.py)과 다름:")
+        for d in diffs[:10]:
+            print("     ", d)
+        return False
+    print("  표 = firmware.ino + hexapod_sdk.py + hexapod_pose_gui.py (일치)")
+    return True
+
+
 def offline():
-    print("관절 허용 범위 [펌웨어 도] = 캘리브레이션(틱 %d~%d) ∩ 기구 한계, 여유 %.0f°" %
-          (lm.TICK_HARD_MIN, lm.TICK_HARD_MAX, lm.LIMIT_MARGIN))
+    print(f"캘리브레이션 표: {lm.TABLE_PATH}")
+    print(f"  다리 길이 coxa {lm.COXA_LEN} / femur {lm.FEMUR_LEN} / tibia {lm.TIBIA_LEN} mm, "
+          f"hip 부호 {lm.HIP_SIGN}, 서기 {lm.STAND_POSE[0]}")
+    table_ok = _table_matches_sources()
+    print("관절 허용 범위 [실제 관절 도] = 표의 joint_limits ∩ 펌웨어 틱 %d~%d  |  서기 자세 → 펌웨어 각도 (관절 보정 적용)"
+          % (lm.TICK_HARD_MIN, lm.TICK_HARD_MAX))
     for l in range(lm.NUM_LEGS):
         lims = "  ".join(f"{n} {a:5.1f}~{b:5.1f}" for n, (a, b) in zip(("hip", "femur", "tibia"), lm.JOINT_LIMITS[l]))
-        ticks = [round(lm.fw_ticks(l, j, lm.STAND_POSE[l][j])) for j in range(3)]
-        print(f"  다리 {l} {lm.LEG_NAMES[l]:<5} {lims}   서기 틱 {ticks}")
+        fw = [round(lm.to_firmware(l, j, lm.STAND_POSE[l][j]), 1) for j in range(3)]
+        ticks = [round(lm.tick_of(l, j, lm.STAND_POSE[l][j])) for j in range(3)]
+        print(f"  다리 {l} {lm.LEG_NAMES[l]:<5} {lims}  |  {fw} 틱 {ticks}")
     gait = g.IkTripodGait()
     print(f"서기 발 높이 {gait.ground:.1f}mm (몸통 원점 기준), 보폭 {gait.stride:.1f}mm, 직진 최고 {gait.max_speed():.3f} m/s")
 
@@ -134,6 +169,7 @@ def offline():
             print("    ", e)
         bad |= bool(errs)
     print("\n통계:", gait.stats)
+    bad |= not table_ok
     print("결과:", "실패" if bad else "통과")
     return 1 if bad else 0
 
@@ -149,6 +185,7 @@ def identify(port):
     pose = [row[:] for row in lm.STAND_POSE]
 
     def glide(target, secs=0.8):
+        """실제 관절 각도로 부드럽게 옮긴다 (보낼 때 관절 보정 적용)."""
         start = [row[:] for row in pose]
         n = max(1, int(secs / DT))
         for k in range(1, n + 1):
@@ -156,11 +193,12 @@ def identify(port):
             for l in range(6):
                 for j in range(3):
                     pose[l][j] = start[l][j] + (target[l][j] - start[l][j]) * u
-            fw.send_pose(pose)
+            fw.send_pose(lm.pose_to_firmware(pose))
             time.sleep(DT)
 
     try:
-        glide(lm.STAND_POSE, 1.5)
+        fw.send_pose(lm.pose_to_firmware(pose))     # 처음엔 서기 자세로 바로
+        time.sleep(1.5)
         for l in range(lm.NUM_LEGS):
             print(f"\n다리 {l} → '{lm.LEG_NAMES[l]}' 다리여야 함: 1) 앞쪽으로 돌고  2) 위로 들린다")
             t = [row[:] for row in lm.STAND_POSE]
